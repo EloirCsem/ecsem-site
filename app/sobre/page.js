@@ -3,7 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-export default function Contato() {
+export default function Sobre() {
   const pathname = usePathname();
 
   const navLinks = [
@@ -47,65 +47,18 @@ export default function Contato() {
       {/* Espaço para compensar header fixo */}
       <div className="h-[80px]" />
 
-      {/* Banner da página */}
-      <section className="flex flex-col items-center justify-center bg-black/82 text-white text-center py-16 px-6">
-        <h1 className="text-5xl font-bold mb-4">Contato</h1>
-        <p className="mb-6 text-gray-200 text-lg">Fale conosco pelos canais abaixo:</p>
+      {/* Banner */}
+      <section className="flex flex-col items-center justify-center h-[50vh] bg-black/82 text-white text-center px-6">
+        <h1 className="text-5xl font-bold mb-4">Sobre Nós</h1>
+        <p className="max-w-3xl text-lg leading-relaxed">
+          A <strong>C-SEM (Constantino Soluções Engenharia e Mecânica)</strong> nasceu com o
+          objetivo de fornecer soluções completas em engenharia, manutenção e consultoria técnica.
+          <br /><br />
+          Nossa missão é unir conhecimento técnico e inovação para garantir eficiência, segurança
+          e qualidade em cada projeto realizado.
+        </p>
 
-        <div className="space-y-4 text-lg text-gray-200">
-          <p>
-            📧 Email:{" "}
-            <a href="mailto:eloir.csem@gmail.com" className="text-blue-400 underline">
-              eloir.csem@gmail.com
-            </a>
-          </p>
-          <p>📞 Telefone: (51) 998218593</p>
-          <p>
-            💬 WhatsApp:{" "}
-            <a
-              href="https://wa.me/5551998218593"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-green-400 underline"
-            >
-              Enviar mensagem
-            </a>
-          </p>
-          <p>📍 Endereço: Cachoeirinha / RS</p>
-        </div>
-
-        {/* Formulário */}
-        <form className="mt-8 bg-gray-50 p-6 rounded-lg shadow w-full max-w-md text-left">
-  <label className="block mb-4">
-    <span className="text-gray-700">Nome</span>
-    <input
-      type="text"
-      className="w-full p-2 border rounded mt-1 text-gray-900 placeholder-gray-400"
-      placeholder="Digite seu nome"
-    />
-  </label>
-  <label className="block mb-4">
-    <span className="text-gray-700">E-mail</span>
-    <input
-      type="email"
-      className="w-full p-2 border rounded mt-1 text-gray-900 placeholder-gray-400"
-      placeholder="Digite seu e-mail"
-    />
-  </label>
-  <label className="block mb-4">
-    <span className="text-gray-700">Mensagem</span>
-    <textarea
-      className="w-full p-2 border rounded mt-1 text-gray-900 placeholder-gray-400"
-      rows="4"
-      placeholder="Digite sua mensagem"
-    ></textarea>
-  </label>
-  <button className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700">
-    Enviar
-  </button>
-</form>
-
-        {/* Botões adicionais para navegar */}
+        {/* Botões */}
         <div className="flex gap-4 mt-6 flex-wrap justify-center">
           <Link
             href="/"
@@ -114,10 +67,10 @@ export default function Contato() {
             Home
           </Link>
           <Link
-            href="/sobre"
+            href="/contato"
             className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg shadow hover:bg-blue-700"
           >
-            Sobre Nós
+            Contato
           </Link>
         </div>
       </section>
