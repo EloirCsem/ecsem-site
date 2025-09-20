@@ -15,8 +15,7 @@ export default function ClienteLogin() {
     e.preventDefault();
     try {
       await signInWithEmailAndPassword(auth, email, senha);
-      alert("Login realizado com sucesso!");
-      router.push("/painel/dashboard"); // redireciona para a página do painel
+      router.push("/painel/dashboard"); // redireciona para o dashboard
     } catch (err) {
       setErro("Email ou senha inválidos.");
       console.error(err);
