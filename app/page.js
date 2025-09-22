@@ -57,7 +57,7 @@ export default function Home() {
           className="mb-6 animate-fadeIn"
         />
         <h1 className="text-5xl font-bold mb-2 animate-fadeIn">C-SEM</h1>
-        <p className="mt-4 text-xl animate-fadeIn">CONSTANTINO SOLUÇÕES ENGENHARIA E MECÂNICA</p>
+        <p className="mt-4 text-xl animate-fadeIn">ELOIR CONSTANTINO SOLUÇÕES ENGENHARIA E MECÂNICA</p>
 
         {/* Botões da Home */}
         <div className="flex gap-4 mt-6 flex-wrap justify-center">
@@ -126,3 +126,4 @@ export default function Home() {
     </main>
   );
 }
+
