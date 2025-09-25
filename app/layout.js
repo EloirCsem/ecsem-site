@@ -1,5 +1,6 @@
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { Analytics } from "@vercel/analytics/next";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -16,11 +17,6 @@ export const metadata = {
   description: "Site oficial da C-SEM",
 };
 
-<head>
-  <link rel="icon" href="/favicon.ico" />
-  <link rel="apple-touch-icon" href="/favicon.ico" />
-  <meta name="theme-color" content="#1E40AF" />
-</head>
 
 export default function RootLayout({ children }) {
   return (
