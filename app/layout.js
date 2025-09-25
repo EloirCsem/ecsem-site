@@ -15,22 +15,21 @@ const geistMono = Geist_Mono({
 export const metadata = {
   title: "C-SEM",
   description: "Site oficial da C-SEM",
+  icons: {
+    icon: "/logo-icon.png",   // favicon
+    apple: "/logo-icon.png",  // ícone para Apple devices
+  },
 };
-
 
 export default function RootLayout({ children }) {
   return (
     <html lang="pt-BR">
-      <head>
-        {/* Favicon */}
-        <link rel="icon" href="/logo-icon.png" />
-        <link rel="apple-touch-icon" href="/logo-icon.png" />
-        <meta name="theme-color" content="#1E40AF" />
-      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         {children}
+        {/* Vercel Analytics para monitorar visitas */}
+        <Analytics />
       </body>
     </html>
   );
