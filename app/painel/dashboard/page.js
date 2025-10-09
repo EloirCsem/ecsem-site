@@ -4,16 +4,22 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { auth, db } from "../../../firebaseConfig";
 import { onAuthStateChanged } from "firebase/auth";
-import {
+import { 
   collection,
   query,
   where,
   getDocs,
   doc,
+  getDoc,
+  setDoc,
   updateDoc,
+  deleteDoc,
   arrayUnion,
+  orderBy,
+  limit
 } from "firebase/firestore";
 import Image from "next/image";
+import { FiTrash2 } from "react-icons/fi"; // ícone de lixeira
 
 // Bibliotecas para exportação
 import * as XLSX from "xlsx";
@@ -21,7 +27,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
 // Bibliotecas para gráficos
-import { Bar, Pie, Line } from "react-chartjs-2";
+import { Bar, Line } from "react-chartjs-2";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -55,8 +61,71 @@ export default function Dashboard() {
   const [novaObs, setNovaObs] = useState("");
   const [filtro, setFiltro] = useState("Todas");
   const [busca, setBusca] = useState("");
-  const [abaAtiva, setAbaAtiva] = useState("ordens"); // controla aba ativa
+  const [abaAtiva, setAbaAtiva] = useState("ordens");
+  const [modalCriar, setModalCriar] = useState(false);
+  const [novoCliente, setNovoCliente] = useState("");
+  const [novoModelo, setNovoModelo] = useState("");
+  const [novoSerie, setNovoSerie] = useState("");
+  const [novaDescricao, setNovaDescricao] = useState("");
+  const [usuario, setUsuario] = useState(null);
+  const [usuarios, setUsuarios] = useState([]); // <-- estado para a lista de usuários
+
   const router = useRouter();
+
+  // Função para buscar todos os usuários (para admin)
+  const fetchUsuarios = async () => {
+    try {
+      const snapshot = await getDocs(collection(db, "usuarios"));
+      const listaUsuarios = snapshot.docs.map(doc => ({
+        uid: doc.id,
+        ...doc.data(),
+      }));
+      setUsuarios(listaUsuarios);
+    } catch (err) {
+      console.error("Erro ao buscar usuários:", err);
+    }
+  };
+
+  // Detectar login e carregar dados do usuário + OS + lista de usuários se for admin
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        setOrdens([]);
+        setUsuario(null);
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const userDocRef = doc(db, "usuarios", user.uid);
+        const userSnap = await getDoc(userDocRef);
+        let userData = { uid: user.uid, isGestor: false, isAdmin: false };
+
+        if (userSnap.exists()) {
+          const u = userSnap.data();
+          userData.isGestor = u.isGestor || false;
+          userData.isAdmin = u.isAdmin || false;
+        }
+
+        setUsuario(userData);
+
+        // Buscar OS do usuário
+        fetchOrdens(userData);
+
+        // Se for admin, carregar todos os usuários
+        if (userData.isAdmin) {
+          fetchUsuarios();
+        }
+      } catch (err) {
+        console.error("Erro ao buscar dados do usuário:", err);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // Aqui você adiciona a função fetchOrdens(userData) como já tem
+
 
   // Logout
   const handleLogout = async () => {
@@ -64,38 +133,69 @@ export default function Dashboard() {
     router.push("/painel");
   };
 
-  // Busca ordens do usuário logado
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (!user) {
-        setOrdens([]);
-        setLoading(false);
-        return;
+  // Buscar ordens
+  const fetchOrdens = async (userData) => {
+  if (!userData) return;
+  setLoading(true);
+
+  try {
+    let q;
+
+    if (userData.isAdmin) {
+      // Admin vê todas as OS
+      q = query(collection(db, "ordens_servico"), orderBy("numeroOs", "asc"));
+    } else {
+      // Gestor/técnico vê apenas suas OS
+      q = query(
+        collection(db, "ordens_servico"),
+        where("usuarioId", "==", userData.uid),
+        orderBy("numeroOs", "asc")
+      );
+    }
+
+    const snapshot = await getDocs(q);
+    const ordensUsuario = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+    setOrdens(ordensUsuario);
+
+  } catch (error) {
+    console.error("Erro ao buscar OS:", error);
+  } finally {
+    setLoading(false);
+  }
+};
+useEffect(() => {
+  const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    if (!user) {
+      setOrdens([]);
+      setUsuario(null);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const userDocRef = doc(db, "usuarios", user.uid);
+      const userSnap = await getDoc(userDocRef);
+      let userData = { uid: user.uid, isGestor: false, isAdmin: false };
+
+      if (userSnap.exists()) {
+        const u = userSnap.data();
+        userData.isGestor = u.isGestor || false;
+        userData.isAdmin = u.isAdmin || false;
       }
 
-      setLoading(true);
-      try {
-        const q = query(
-          collection(db, "ordens_servico"),
-          where("usuarioId", "==", user.uid)
-        );
-        const snapshot = await getDocs(q);
-        const ordensUsuario = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-        setOrdens(ordensUsuario);
-      } catch (error) {
-        console.error("Erro ao buscar OS:", error);
-      } finally {
-        setLoading(false);
-      }
-    });
+      setUsuario(userData);
+      fetchOrdens(userData);
+    } catch (err) {
+      console.error("Erro ao buscar dados do usuário:", err);
+    }
+  });
 
-    return () => unsubscribe();
-  }, []);
-
-  // Define cor do status
+  return () => unsubscribe();
+}, []);
+  // Cores
   const getStatusColor = (status = "") => {
     switch (status.toLowerCase()) {
       case "aberto":
@@ -116,30 +216,122 @@ export default function Dashboard() {
   };
 
   const handleSalvar = async () => {
-    if (!selectedOrdem) return;
+  if (!selectedOrdem) return;
 
-    const ordemRef = doc(db, "ordens_servico", selectedOrdem.id);
+  const ordemRef = doc(db, "ordens_servico", selectedOrdem.id); // <-- usar o id real
+  try {
     await updateDoc(ordemRef, {
       status: novoStatus,
       observacoes: arrayUnion(novaObs),
     });
 
+    // Atualiza estado local
     setOrdens((prev) =>
       prev.map((o) =>
         o.id === selectedOrdem.id
-          ? {
-              ...o,
-              status: novoStatus,
-              observacoes: [...(o.observacoes || []), novaObs],
-            }
+          ? { ...o, status: novoStatus, observacoes: [...(o.observacoes || []), novaObs] }
           : o
       )
     );
+
     setNovaObs("");
     setSelectedOrdem(null);
+  } catch (err) {
+    console.error("Erro ao salvar OS:", err);
+    alert("Erro ao salvar OS, veja o console.");
+  }
+};
+
+  // Criar nova OS com número sequencial global
+const handleCriarOS = async () => {
+  if (!novoCliente || !novoModelo || !novoSerie || !novaDescricao) {
+    alert("Preencha todos os campos obrigatórios!");
+    return;
+  }
+
+  const user = auth.currentUser;
+  if (!user) return;
+
+  setLoading(true);
+  try {
+    // Buscar maior numeroOs existente globalmente
+    const q = query(
+      collection(db, "ordens_servico"),
+      orderBy("numeroOs", "desc"),
+      limit(1)
+    );
+    const snapshot = await getDocs(q);
+
+    let proximoNumero = 1;
+    if (!snapshot.empty) {
+      const maiorOs = snapshot.docs[0].data().numeroOs;
+      proximoNumero = Number(maiorOs) + 1;
+    }
+
+    // Criar documento com ID gerado automaticamente
+    const novaOSRef = doc(db, "ordens_servico",proximoNumero.toString());
+
+    await setDoc(novaOSRef, {
+      numeroOs: proximoNumero.toString(),
+      cliente: novoCliente,
+      modelo: novoModelo,
+      numeroSerie: novoSerie,
+      descricao: novaDescricao,
+      status: "Aberto",
+      usuarioId: user.uid, // quem criou a OS
+      tecnicoId: "",       // pode definir depois
+      inicio: "",
+      fim: "",
+      observacoes: [],
+      solicitacaoPecas: "",
+      pecasUsadas: "",
+      dataCriacao: new Date(),
+    });
+
+    // Atualizar estado local
+    setOrdens((prev) => [
+      ...prev,
+      {
+        id: novaOSRef.id,
+        numeroOs: proximoNumero.toString(),
+        cliente: novoCliente,
+        modelo: novoModelo,
+        numeroSerie: novoSerie,
+        descricao: novaDescricao,
+        status: "Aberto",
+        usuarioId: user.uid,
+        tecnicoId: "",
+        inicio: "",
+        fim: "",
+        observacoes: [],
+        solicitacaoPecas: "",
+        pecasUsadas: "",
+        dataCriacao: new Date(),
+      },
+    ]);
+
+    // Limpar campos e fechar modal
+    setNovoCliente("");
+    setNovoModelo("");
+    setNovoSerie("");
+    setNovaDescricao("");
+    setModalCriar(false);
+  } catch (err) {
+    console.error("Erro ao criar OS:", err);
+    alert("Erro ao criar OS, veja o console.");
+  } finally {
+    setLoading(false);
+  }
+};
+
+  // Apagar OS com ícone de lixeira
+  const handleApagarOS = async (numeroOs) => {
+    if (!confirm("Deseja realmente apagar esta OS?")) return;
+    await deleteDoc(doc(db, "ordens_servico", numeroOs.toString()));
+    setOrdens((prev) => prev.filter((o) => o.numeroOs !== numeroOs));
   };
 
-  // Filtra ordens
+  // Filtros
   const ordensFiltradas = ordens.filter((os) => {
     const filtroStatus =
       filtro === "Pendentes"
@@ -147,14 +339,12 @@ export default function Dashboard() {
         : filtro === "Concluídas"
         ? os.status === "encerrado"
         : true;
-
     const filtroBusca =
-      busca === "" || os.numeroOs.toLowerCase().includes(busca.toLowerCase());
-
+      busca === "" || os.numeroOs?.toString().includes(busca);
     return filtroStatus && filtroBusca;
   });
 
-  // --- Funções para exportar ---
+  // Exportar Excel/PDF
   const exportExcel = () => {
     const ws = XLSX.utils.json_to_sheet(ordensFiltradas);
     const wb = XLSX.utils.book_new();
@@ -174,26 +364,23 @@ export default function Dashboard() {
       o.fim,
     ]);
 
-    autoTable(docPDF, { head: head, body: body });
+    autoTable(docPDF, { head, body });
     docPDF.save("Ordens.pdf");
   };
 
-  // --- Dados para gráficos ---
+  // Gráficos
   const ordensPorTecnico = ordensFiltradas.reduce((acc, os) => {
     acc[os.tecnico] = (acc[os.tecnico] || 0) + 1;
     return acc;
   }, {});
 
   const ordensPorMes = ordensFiltradas.reduce((acc, os) => {
-    const mes = new Date(os.inicio).toLocaleString("default", { month: "short", year: "numeric" });
+    const mes = os.inicio
+      ? new Date(os.inicio).toLocaleString("default", { month: "short", year: "numeric" })
+      : "Sem início";
     acc[mes] = (acc[mes] || 0) + 1;
     return acc;
   }, {});
-
-  const tempoMedio = ordensFiltradas
-    .filter((o) => o.inicio && o.fim)
-    .map((o) => (new Date(o.fim) - new Date(o.inicio)) / (1000 * 60)) // minutos
-  const mediaTempo = tempoMedio.length ? (tempoMedio.reduce((a, b) => a + b, 0) / tempoMedio.length).toFixed(2) : 0;
 
   return (
     <main className="flex flex-col items-center justify-start min-h-screen bg-gray-100 px-6 pt-16">
@@ -203,12 +390,20 @@ export default function Dashboard() {
           <Image src="/logo.png" alt="Logo C-SEM" width={50} height={50} />
           <h1 className="text-3xl font-bold text-blue-600">Painel do Cliente</h1>
         </div>
-        <button
-          onClick={handleLogout}
-          className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition"
-        >
-          Logout
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setModalCriar(true)}
+            className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition"
+          >
+            Criar OS
+          </button>
+          <button
+            onClick={handleLogout}
+            className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition"
+          >
+            Logout
+          </button>
+        </div>
       </div>
 
       {/* Abas */}
@@ -231,7 +426,7 @@ export default function Dashboard() {
         </button>
       </div>
 
-      {/* --- Aba Ordens --- */}
+      {/* Aba Ordens */}
       {abaAtiva === "ordens" && (
         <>
           {/* Filtros e busca */}
@@ -269,16 +464,25 @@ export default function Dashboard() {
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 w-full max-w-6xl">
               {ordensFiltradas.map((os) => (
                 <div
-                  key={os.id}
-                  className="flex cursor-pointer rounded shadow hover:shadow-lg transition"
+                  key={os.numeroOs}
+                  className="flex cursor-pointer rounded shadow hover:shadow-lg transition relative"
                   onClick={() => handleSelectOrdem(os)}
                 >
                   <div className={`w-2 rounded-l ${getStatusColor(os.status)}`}></div>
-                  <div className="flex flex-col p-2 text-sm">
+                  <div className="flex flex-col p-2 text-sm flex-1">
                     <p className="font-semibold">#{os.numeroOs}</p>
                     <p className="capitalize">{os.status}</p>
                     <p>{os.data}</p>
                   </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleApagarOS(os.numeroOs);
+                    }}
+                    className="absolute top-1 right-1 text-red-600 hover:text-red-800"
+                  >
+                    <FiTrash2 size={20} />
+                  </button>
                 </div>
               ))}
             </div>
@@ -286,97 +490,117 @@ export default function Dashboard() {
         </>
       )}
 
-{/* --- Aba Relatórios --- */}
-{abaAtiva === "relatorios" && (
-  <div className="w-full max-w-6xl flex flex-col gap-6">
-    <div className="flex gap-4">
-      <button
-        onClick={exportExcel}
-        className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition"
-      >
-        Exportar Excel
-      </button>
-      <button
-        onClick={exportPDF}
-        className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition"
-      >
-        Exportar PDF
-      </button>
-    </div>
+      {/* Aba Relatórios */}
+      {abaAtiva === "relatorios" && (
+        <div className="w-full max-w-6xl flex flex-col gap-6">
+          <div className="flex gap-4">
+            <button
+              onClick={exportExcel}
+              className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition"
+            >
+              Exportar Excel
+            </button>
+            <button
+              onClick={exportPDF}
+              className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition"
+            >
+              Exportar PDF
+            </button>
+          </div>
 
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
-      <div className="bg-white p-4 rounded shadow">
-        <h3 className="font-semibold mb-2">Ordens por Técnico</h3>
-        <Bar
-          data={{
-            labels: Object.keys(ordensPorTecnico),
-            datasets: [
-              {
-                label: "Qtd. de OS",
-                data: Object.values(ordensPorTecnico),
-                backgroundColor: "rgba(59,130,246,0.7)",
-              },
-            ],
-          }}
-          options={{ responsive: true }}
-        />
-      </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+            <div className="bg-white p-4 rounded shadow">
+              <h3 className="font-semibold mb-2">Ordens por Técnico</h3>
+              <Bar
+                data={{
+                  labels: Object.keys(ordensPorTecnico),
+                  datasets: [
+                    {
+                      label: "Qtd. de OS",
+                      data: Object.values(ordensPorTecnico),
+                      backgroundColor: "rgba(59,130,246,0.7)",
+                    },
+                  ],
+                }}
+                options={{ responsive: true }}
+              />
+            </div>
 
-      <div className="bg-white p-4 rounded shadow">
-        <h3 className="font-semibold mb-2">Ordens por Mês</h3>
-        <Line
-          data={{
-            labels: Object.keys(ordensPorMes),
-            datasets: [
-              {
-                label: "Qtd. de OS",
-                data: Object.values(ordensPorMes),
-                borderColor: "rgba(59,130,246,1)",
-                backgroundColor: "rgba(59,130,246,0.3)",
-                tension: 0.3,
-              },
-            ],
-          }}
-          options={{ responsive: true }}
-        />
-      </div>
+            <div className="bg-white p-4 rounded shadow">
+              <h3 className="font-semibold mb-2">Ordens por Mês</h3>
+              <Line
+                data={{
+                  labels: Object.keys(ordensPorMes),
+                  datasets: [
+                    {
+                      label: "Qtd. de OS",
+                      data: Object.values(ordensPorMes),
+                      borderColor: "rgba(59,130,246,1)",
+                      backgroundColor: "rgba(59,130,246,0.3)",
+                      tension: 0.3,
+                    },
+                  ],
+                }}
+                options={{ responsive: true }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
-      <div className="bg-white p-4 rounded shadow">
-        <h3 className="font-semibold mb-2">Tempo médio de reparo (minutos)</h3>
-        <p className="text-xl font-bold">
-          {(() => {
-            // Cálculo da média de tempo
-            const tempos = ordens
-              .filter(
-                (os) =>
-                  os.inicio &&
-                  os.fim &&
-                  os.inicio.includes("-") &&
-                  os.fim.includes("-")
-              )
-              .map((os) => {
-                const inicioTS = Number(os.inicio.split("-")[1].trim());
-                const fimTS = Number(os.fim.split("-")[1].trim());
-                if (isNaN(inicioTS) || isNaN(fimTS)) return 0;
-                return (fimTS - inicioTS) / 1000 / 60; // minutos
-              });
+      {/* Modal Criar OS */}
+      {modalCriar && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white p-6 rounded-lg w-full max-w-md shadow-lg overflow-y-auto max-h-[80vh]">
+            <h2 className="text-xl font-bold mb-4">Criar Nova OS</h2>
+            <div className="flex flex-col gap-3">
+              <input
+                type="text"
+                placeholder="Cliente *"
+                value={novoCliente}
+                onChange={(e) => setNovoCliente(e.target.value)}
+                className="border p-2 rounded"
+              />
+              <input
+                type="text"
+                placeholder="Modelo *"
+                value={novoModelo}
+                onChange={(e) => setNovoModelo(e.target.value)}
+                className="border p-2 rounded"
+              />
+              <input
+                type="text"
+                placeholder="Número de Série *"
+                value={novoSerie}
+                onChange={(e) => setNovoSerie(e.target.value)}
+                className="border p-2 rounded"
+              />
+              <textarea
+                placeholder="Descrição/Observação *"
+                value={novaDescricao}
+                onChange={(e) => setNovaDescricao(e.target.value)}
+                className="border p-2 rounded"
+              ></textarea>
+              <div className="flex justify-end gap-2 mt-2">
+                <button
+                  onClick={handleCriarOS}
+                  className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition"
+                >
+                  Criar
+                </button>
+                <button
+                  onClick={() => setModalCriar(false)}
+                  className="bg-gray-300 px-4 py-2 rounded hover:bg-gray-400 transition"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
-            if (tempos.length === 0) return "0 min";
-
-            const mediaMinutos =
-              tempos.reduce((acc, t) => acc + t, 0) / tempos.length;
-            const horas = Math.floor(mediaMinutos / 60);
-            const minutos = Math.round(mediaMinutos % 60);
-
-            return horas > 0 ? `${horas}h ${minutos}min` : `${minutos}min`;
-          })()}
-        </p>
-      </div>
-    </div>
-  </div>
-)}
-
-      {/* --- Modal de detalhes --- */}
+      {/* Modal Detalhes OS */}
       {selectedOrdem && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white p-6 rounded-lg w-full max-w-md shadow-lg overflow-y-auto max-h-[80vh]">
@@ -385,14 +609,12 @@ export default function Dashboard() {
             <p><strong>Modelo:</strong> {selectedOrdem.modelo}</p>
             <p><strong>Número de Série:</strong> {selectedOrdem.numeroSerie}</p>
             <p><strong>Técnico:</strong> {selectedOrdem.tecnico}</p>
-            <p><strong>Início:</strong> {selectedOrdem.inicio}</p>
-            <p><strong>Fim:</strong> {selectedOrdem.fim}</p>
-
+            <p><strong>Início:</strong> {selectedOrdem.inicio || "-"}</p>
+            <p><strong>Fim:</strong> {selectedOrdem.fim || "-"}</p>
             <p className="mt-2 font-semibold">Solicitação de Peças:</p>
             <div className="border rounded p-2 bg-gray-100 text-sm mb-2">
               {selectedOrdem.solicitacaoPecas || "Nenhuma solicitação"}
             </div>
-
             <p><strong>Descrição:</strong> {selectedOrdem.descricao}</p>
             <p>
               <strong>Status atual:</strong>{" "}
@@ -400,7 +622,37 @@ export default function Dashboard() {
                 {selectedOrdem.status}
               </span>
             </p>
-
+{usuario?.isAdmin && (
+  <div className="mt-4">
+    <label className="font-semibold">Responsável:</label>
+    <select
+      value={selectedOrdem.usuarioId} // valor atual
+      onChange={async (e) => {
+        const novoUsuarioId = e.target.value;
+        const ordemRef = doc(db, "ordens_servico", selectedOrdem.numeroOs.toString());
+        // Atualiza no Firestore
+        await updateDoc(ordemRef, {
+          usuarioId: novoUsuarioId,
+        });
+        // Atualiza localmente para refletir no modal
+        setSelectedOrdem(prev => ({ ...prev, usuarioId: novoUsuarioId }));
+        // Atualiza na lista principal
+        setOrdens(prev => prev.map(o =>
+          o.numeroOs === selectedOrdem.numeroOs
+            ? { ...o, usuarioId: novoUsuarioId }
+            : o
+        ));
+      }}
+      className="border p-1 rounded w-full mt-1"
+    >
+      {usuarios.map(u => (
+        <option key={u.uid} value={u.uid}>
+          {u.nome || u.email}
+        </option>
+      ))}
+    </select>
+  </div>
+)}
             <div className="mt-4">
               <label className="font-semibold">Novo status:</label>
               <select
