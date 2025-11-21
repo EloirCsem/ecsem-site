@@ -71,61 +71,100 @@ export default function Dashboard() {
   const [usuarios, setUsuarios] = useState([]); // <-- estado para a lista de usuários
 
   const router = useRouter();
+// busca usuarios: se isAdmin => todos, se isGestor => apenas usuarios com clienteId == userData.uid
+const fetchUsuarios = async (userData) => {
+  try {
+    let snapshot;
+    if (!userData) return;
 
-  // Função para buscar todos os usuários (para admin)
-  const fetchUsuarios = async () => {
-    try {
-      const snapshot = await getDocs(collection(db, "usuarios"));
-      const listaUsuarios = snapshot.docs.map(doc => ({
-        uid: doc.id,
-        ...doc.data(),
-      }));
-      setUsuarios(listaUsuarios);
-    } catch (err) {
-      console.error("Erro ao buscar usuários:", err);
+    if (userData.isAdmin) {
+      snapshot = await getDocs(collection(db, "usuarios"));
+    } else if (userData.isGestor) {
+      // busca somente técnicos vinculados ao gestor (campo clienteId igual ao uid do gestor)
+      const q = query(
+        collection(db, "usuarios"),
+        where("clienteId", "==", userData.uid)
+      );
+      snapshot = await getDocs(q);
+    } else {
+      // usuário comum não precisa da lista
+      setUsuarios([]);
+      return;
     }
-  };
+
+    const listaUsuarios = snapshot.docs.map(d => ({ uid: d.id, ...d.data() }));
+    setUsuarios(listaUsuarios);
+  } catch (err) {
+    console.error("Erro ao buscar usuários:", err);
+    setUsuarios([]);
+  }
+};
 
   // Detectar login e carregar dados do usuário + OS + lista de usuários se for admin
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (!user) {
-        setOrdens([]);
-        setUsuario(null);
-        setLoading(false);
-        return;
+  const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    if (!user) {
+      setOrdens([]);
+      setUsuario(null);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const userDocRef = doc(db, "usuarios", user.uid);
+      const userSnap = await getDoc(userDocRef);
+      let userData = { uid: user.uid, isGestor: false, isAdmin: false };
+
+      if (userSnap.exists()) {
+        const u = userSnap.data();
+        userData.isGestor = !!u.isGestor;
+        userData.isAdmin = !!u.isAdmin;
       }
 
-      try {
-        const userDocRef = doc(db, "usuarios", user.uid);
-        const userSnap = await getDoc(userDocRef);
-        let userData = { uid: user.uid, isGestor: false, isAdmin: false };
+      setUsuario(userData);
 
-        if (userSnap.exists()) {
-          const u = userSnap.data();
-          userData.isGestor = u.isGestor || false;
-          userData.isAdmin = u.isAdmin || false;
-        }
+      // buscar ordens conforme perfil
+      fetchOrdens(userData);
 
-        setUsuario(userData);
-
-        // Buscar OS do usuário
-        fetchOrdens(userData);
-
-        // Se for admin, carregar todos os usuários
-        if (userData.isAdmin) {
-          fetchUsuarios();
-        }
-      } catch (err) {
-        console.error("Erro ao buscar dados do usuário:", err);
+      // se admin ou gestor, carrega lista de usuários apropriada
+      if (userData.isAdmin || userData.isGestor) {
+        fetchUsuarios(userData);
+      } else {
+        setUsuarios([]); // limpa lista para usuários comuns
       }
-    });
 
-    return () => unsubscribe();
-  }, []);
+    } catch (err) {
+      console.error("Erro ao buscar dados do usuário:", err);
+    }
+  });
 
+  return () => unsubscribe();
+}, []);
   // Aqui você adiciona a função fetchOrdens(userData) como já tem
 
+
+const handleAtribuirTecnico = async (ordemId, novoTecnicoUid) => {
+  if (!ordemId) return;
+  try {
+    const ordemRef = doc(db, "ordens_servico", ordemId);
+    // Atualiza apenas o campo tecnicoId (e opcionalmente tecnico para exibir nome)
+    await updateDoc(ordemRef, {
+      tecnicoId: novoTecnicoUid,
+      // opcional: tecnico: nomeString  // se você quiser salvar também o nome
+    });
+
+    // atualiza estado local para refletir na UI imediatamente
+    setOrdens(prev => prev.map(o => o.id === ordemId ? { ...o, tecnicoId: novoTecnicoUid } : o));
+
+    // se modal aberto, atualiza selectedOrdem
+    if (selectedOrdem && selectedOrdem.id === ordemId) {
+      setSelectedOrdem(prev => ({ ...prev, tecnicoId: novoTecnicoUid }));
+    }
+  } catch (err) {
+    console.error("Erro ao atribuir técnico:", err);
+    alert("Erro ao atribuir técnico. Veja console.");
+  }
+};
 
   // Logout
   const handleLogout = async () => {
@@ -134,21 +173,27 @@ export default function Dashboard() {
   };
 
   // Buscar ordens
+  
   const fetchOrdens = async (userData) => {
   if (!userData) return;
   setLoading(true);
-
   try {
     let q;
-
     if (userData.isAdmin) {
-      // Admin vê todas as OS
+      // super-admin: vê tudo
       q = query(collection(db, "ordens_servico"), orderBy("numeroOs", "asc"));
-    } else {
-      // Gestor/técnico vê apenas suas OS
+    } else if (userData.isGestor) {
+      // gestor/cliente: vê apenas ordens do seu cliente
       q = query(
         collection(db, "ordens_servico"),
-        where("usuarioId", "==", userData.uid),
+        where("clienteId", "==", userData.uid),
+        orderBy("numeroOs", "asc")
+      );
+    } else {
+      // técnico: vê apenas ordens atribuidas a ele (ou que ele criou — escolha)
+      q = query(
+        collection(db, "ordens_servico"),
+        where("tecnicoId", "==", userData.uid),
         orderBy("numeroOs", "asc")
       );
     }
@@ -159,13 +204,13 @@ export default function Dashboard() {
       ...doc.data(),
     }));
     setOrdens(ordensUsuario);
-
   } catch (error) {
     console.error("Erro ao buscar OS:", error);
   } finally {
     setLoading(false);
   }
 };
+
 useEffect(() => {
   const unsubscribe = onAuthStateChanged(auth, async (user) => {
     if (!user) {
@@ -243,82 +288,86 @@ useEffect(() => {
 };
 
   // Criar nova OS com número sequencial global
+
+// imports necessários (verifique se já existem no topo do arquivo)
+// import { collection, query, orderBy, limit, getDocs, doc, setDoc, getDoc } from "firebase/firestore";
+
 const handleCriarOS = async () => {
+  // validação simples dos campos do modal
   if (!novoCliente || !novoModelo || !novoSerie || !novaDescricao) {
     alert("Preencha todos os campos obrigatórios!");
     return;
   }
 
   const user = auth.currentUser;
-  if (!user) return;
+  if (!user) return alert("Usuário não autenticado");
 
   setLoading(true);
   try {
-    // Buscar maior numeroOs existente globalmente
-    const q = query(
-      collection(db, "ordens_servico"),
-      orderBy("numeroOs", "desc"),
-      limit(1)
-    );
+    // 1) pegar maior numeroOs existente (ordenado desc)
+    const q = query(collection(db, "ordens_servico"), orderBy("numeroOs", "desc"), limit(1));
     const snapshot = await getDocs(q);
-
     let proximoNumero = 1;
     if (!snapshot.empty) {
-      const maiorOs = snapshot.docs[0].data().numeroOs;
-      proximoNumero = Number(maiorOs) + 1;
+      const maior = snapshot.docs[0].data().numeroOs;
+      proximoNumero = Number(maior) + 1;
+    }
+    const novaId = proximoNumero.toString(); // id do documento
+
+    // 2) pegar doc do usuário para achar clienteId (se técnico)
+    const userDocRef = doc(db, "usuarios", user.uid);
+    const userSnap = await getDoc(userDocRef);
+    let clienteIdParaSalvar = user.uid; // default (se gestor cria para si)
+    if (userSnap.exists()) {
+      const u = userSnap.data();
+      if (u.clienteId) {
+        // se for técnico, usa o clienteId do seu doc
+        clienteIdParaSalvar = u.clienteId;
+      } else if (u.isGestor) {
+        // se for gestor, clienteId = proprio uid
+        clienteIdParaSalvar = user.uid;
+      } else {
+        clienteIdParaSalvar = user.uid; // fallback seguro
+      }
     }
 
-    // Criar documento com ID gerado automaticamente
-    const novaOSRef = doc(db, "ordens_servico",proximoNumero.toString());
-
-    await setDoc(novaOSRef, {
-      numeroOs: proximoNumero.toString(),
+    // 3) montar objeto da OS
+    const novaOSData = {
+      numeroOs: novaId,
       cliente: novoCliente,
       modelo: novoModelo,
       numeroSerie: novoSerie,
       descricao: novaDescricao,
       status: "Aberto",
-      usuarioId: user.uid, // quem criou a OS
-      tecnicoId: "",       // pode definir depois
+      usuarioId: user.uid,            // quem criou
+      clienteId: clienteIdParaSalvar, // vinculo do cliente/gestor
+    
       inicio: "",
       fim: "",
       observacoes: [],
       solicitacaoPecas: "",
       pecasUsadas: "",
-      dataCriacao: new Date(),
-    });
+      dataCriacao: new Date().toISOString()
+    };
 
-    // Atualizar estado local
-    setOrdens((prev) => [
-      ...prev,
-      {
-        id: novaOSRef.id,
-        numeroOs: proximoNumero.toString(),
-        cliente: novoCliente,
-        modelo: novoModelo,
-        numeroSerie: novoSerie,
-        descricao: novaDescricao,
-        status: "Aberto",
-        usuarioId: user.uid,
-        tecnicoId: "",
-        inicio: "",
-        fim: "",
-        observacoes: [],
-        solicitacaoPecas: "",
-        pecasUsadas: "",
-        dataCriacao: new Date(),
-      },
-    ]);
+    // 4) salvar no Firestore usando o numero como ID (compatibilidade com app)
+    await setDoc(doc(db, "ordens_servico", novaId), novaOSData);
 
-    // Limpar campos e fechar modal
+    // 5) atualizar state local para aparecer imediatamente na UI
+    setOrdens(prev => [...prev, { id: novaId, ...novaOSData }]);
+
+    // 6) limpar modal e campos
     setNovoCliente("");
     setNovoModelo("");
     setNovoSerie("");
     setNovaDescricao("");
     setModalCriar(false);
+
+    // opcional: sucesso
+    alert(`OS criada: ${novaId}`);
   } catch (err) {
     console.error("Erro ao criar OS:", err);
-    alert("Erro ao criar OS, veja o console.");
+    alert("Erro ao criar OS. Veja o console.");
   } finally {
     setLoading(false);
   }
@@ -622,7 +671,7 @@ const handleCriarOS = async () => {
                 {selectedOrdem.status}
               </span>
             </p>
-{usuario?.isAdmin && (
+{usuario?.isAdmin || usuario?.isGestor&& (
   <div className="mt-4">
     <label className="font-semibold">Responsável:</label>
     <select
