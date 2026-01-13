@@ -53,6 +53,8 @@ ChartJS.register(
   Legend
 );
 
+
+
 export default function Dashboard() {
   const [ordens, setOrdens] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -68,79 +70,87 @@ export default function Dashboard() {
   const [novoSerie, setNovoSerie] = useState("");
   const [novaDescricao, setNovaDescricao] = useState("");
   const [usuario, setUsuario] = useState(null);
-  const [usuarios, setUsuarios] = useState([]); // <-- estado para a lista de usuários
+  const [usuarios, setUsuarios] = useState([]);
 
   const router = useRouter();
-// busca usuarios: se isAdmin => todos, se isGestor => apenas usuarios com clienteId == userData.uid
-const fetchUsuarios = async (userData) => {
-  try {
-    let snapshot;
-    if (!userData) return;
 
-    if (userData.isAdmin) {
-      snapshot = await getDocs(collection(db, "usuarios"));
-    } else if (userData.isGestor) {
-      // busca somente técnicos vinculados ao gestor (campo clienteId igual ao uid do gestor)
-      const q = query(
-        collection(db, "usuarios"),
-        where("clienteId", "==", userData.uid)
-      );
-      snapshot = await getDocs(q);
-    } else {
-      // usuário comum não precisa da lista
-      setUsuarios([]);
-      return;
-    }
 
-    const listaUsuarios = snapshot.docs.map(d => ({ uid: d.id, ...d.data() }));
-    setUsuarios(listaUsuarios);
-  } catch (err) {
-    console.error("Erro ao buscar usuários:", err);
-    setUsuarios([]);
-  }
-};
-
-  // Detectar login e carregar dados do usuário + OS + lista de usuários se for admin
-  useEffect(() => {
-  const unsubscribe = onAuthStateChanged(auth, async (user) => {
-    if (!user) {
-      setOrdens([]);
-      setUsuario(null);
-      setLoading(false);
-      return;
-    }
-
+  // busca usuarios (admin e gestor)
+  const fetchUsuarios = async (userData) => {
     try {
-      const userDocRef = doc(db, "usuarios", user.uid);
-      const userSnap = await getDoc(userDocRef);
-      let userData = { uid: user.uid, isGestor: false, isAdmin: false };
+      let snapshot;
+      if (!userData) return;
 
-      if (userSnap.exists()) {
-        const u = userSnap.data();
-        userData.isGestor = !!u.isGestor;
-        userData.isAdmin = !!u.isAdmin;
-      }
-
-      setUsuario(userData);
-
-      // buscar ordens conforme perfil
-      fetchOrdens(userData);
-
-      // se admin ou gestor, carrega lista de usuários apropriada
-      if (userData.isAdmin || userData.isGestor) {
-        fetchUsuarios(userData);
+      if (userData.isAdmin) {
+        snapshot = await getDocs(collection(db, "usuarios"));
+      } else if (userData.isGestor) {
+        const q = query(
+          collection(db, "usuarios"),
+          where("clienteId", "==", userData.uid)
+        );
+        snapshot = await getDocs(q);
       } else {
-        setUsuarios([]); // limpa lista para usuários comuns
+        setUsuarios([]);
+        return;
       }
 
-    } catch (err) {
-      console.error("Erro ao buscar dados do usuário:", err);
-    }
-  });
+      const listaUsuarios = snapshot.docs.map(d => ({
+        uid: d.id,
+        ...d.data(),
+      }));
 
-  return () => unsubscribe();
-}, []);
-  // Aqui você adiciona a função fetchOrdens(userData) como já tem
+      setUsuarios(listaUsuarios);
+    } catch (err) {
+      console.error("Erro ao buscar usuários:", err);
+      setUsuarios([]);
+    }
+  };
+
+  // detectar login + buscar dados + ordens + usuários
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        setOrdens([]);
+        setUsuario(null);
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const userDocRef = doc(db, "usuarios", user.uid);
+        const userSnap = await getDoc(userDocRef);
+
+        let userData = { uid: user.uid, isGestor: false, isAdmin: false };
+
+        if (userSnap.exists()) {
+  const u = userSnap.data();
+  userData = {
+    uid: user.uid,
+    nome: u.nome || null,            // caso use "nome"
+    tecnicoNome: u.tecnicoNome || u.nome || null, 
+    email: user.email,
+    isGestor: !!u.isGestor,
+    isAdmin: !!u.isAdmin,
+  };
+}
+
+        setUsuario(userData);
+
+        fetchOrdens(userData);
+
+        if (userData.isAdmin || userData.isGestor) {
+          fetchUsuarios(userData);
+        } else {
+          setUsuarios([]);
+        }
+
+      } catch (err) {
+        console.error("Erro ao buscar dados do usuário:", err);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);  // Aqui você adiciona a função fetchOrdens(userData) como já tem
 
 
 const handleAtribuirTecnico = async (ordemId, novoTecnicoUid) => {
@@ -165,6 +175,8 @@ const handleAtribuirTecnico = async (ordemId, novoTecnicoUid) => {
     alert("Erro ao atribuir técnico. Veja console.");
   }
 };
+
+
 
   // Logout
   const handleLogout = async () => {
@@ -431,28 +443,43 @@ const handleCriarOS = async () => {
     return acc;
   }, {});
 
+
+
   return (
     <main className="flex flex-col items-center justify-start min-h-screen bg-gray-100 px-6 pt-16">
       {/* Header */}
       <div className="w-full max-w-6xl flex justify-between items-center mb-6">
         <div className="flex items-center gap-4">
-          <Image src="/logo.png" alt="Logo C-SEM" width={50} height={50} />
-          <h1 className="text-3xl font-bold text-blue-600">Painel do Cliente</h1>
+          <Image src="/logo-icon.png" alt="Logo C-SEM" width={40} height={40} />
+          <h1 className="text-2xl font-bold text-blue-500">Bem vindo, este é seu Painel de operações</h1>
+      
+      
         </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setModalCriar(true)}
-            className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition"
-          >
-            Criar OS
-          </button>
-          <button
-            onClick={handleLogout}
-            className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition"
-          >
-            Logout
-          </button>
-        </div>
+      <div className="flex items-center gap-2">
+  <button
+    onClick={() => setModalCriar(true)}
+    className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition"
+  >
+    Criar OS
+  </button>
+
+  {(usuario?.isGestor || usuario?.isAdmin) && (
+    <button
+      onClick={() => router.push("/painel/bi")}
+      className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 transition"
+    >
+      BI
+    </button>
+  )}
+
+  <button
+    onClick={handleLogout}
+    className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition"
+  >
+    Logout
+  </button>
+</div>
+
       </div>
 
       {/* Abas */}
@@ -671,26 +698,51 @@ const handleCriarOS = async () => {
                 {selectedOrdem.status}
               </span>
             </p>
-{usuario?.isAdmin || usuario?.isGestor&& (
+ {usuario?.isAdmin || usuario?.isGestor ? (
   <div className="mt-4">
     <label className="font-semibold">Responsável:</label>
     <select
-      value={selectedOrdem.usuarioId} // valor atual
+      value={selectedOrdem.tecnicoId || ""}
       onChange={async (e) => {
-        const novoUsuarioId = e.target.value;
+        const novoTecnicoUid = e.target.value;
         const ordemRef = doc(db, "ordens_servico", selectedOrdem.numeroOs.toString());
-        // Atualiza no Firestore
+
+        // Buscar dados completos do técnico selecionado
+        const tecnicoSelecionado = usuarios.find(u => u.uid === novoTecnicoUid);
+
+        // Atualizar Firestore com TODOS os campos necessários
         await updateDoc(ordemRef, {
-          usuarioId: novoUsuarioId,
+          tecnicoId: novoTecnicoUid,     // <- CAMPO CORRETO!!!
+          tecnicoUid: novoTecnicoUid,    // compatibilidade
+          usuarioId: novoTecnicoUid,     // opcional, se usa esse campo também
+          tecnico: tecnicoSelecionado?.nome || tecnicoSelecionado?.email || "",
+          tecnicoEmail: tecnicoSelecionado?.email || "",
+          tecnicoNome: tecnicoSelecionado?.nome || "",
         });
-        // Atualiza localmente para refletir no modal
-        setSelectedOrdem(prev => ({ ...prev, usuarioId: novoUsuarioId }));
-        // Atualiza na lista principal
-        setOrdens(prev => prev.map(o =>
-          o.numeroOs === selectedOrdem.numeroOs
-            ? { ...o, usuarioId: novoUsuarioId }
-            : o
-        ));
+
+        // Atualizar no modal
+        setSelectedOrdem(prev => ({
+          ...prev,
+          tecnicoId: novoTecnicoUid,
+          tecnicoUid: novoTecnicoUid,
+          usuarioId: novoTecnicoUid,
+          tecnico: tecnicoSelecionado?.nome || tecnicoSelecionado?.email || "",
+        }));
+
+        // Atualizar lista principal
+        setOrdens(prev =>
+          prev.map(o =>
+            o.numeroOs === selectedOrdem.numeroOs
+              ? {
+                  ...o,
+                  tecnicoId: novoTecnicoUid,
+                  tecnicoUid: novoTecnicoUid,
+                  usuarioId: novoTecnicoUid,
+                  tecnico: tecnicoSelecionado?.nome || tecnicoSelecionado?.email || "",
+                }
+              : o
+          )
+        );
       }}
       className="border p-1 rounded w-full mt-1"
     >
@@ -701,45 +753,49 @@ const handleCriarOS = async () => {
       ))}
     </select>
   </div>
-)}
-            <div className="mt-4">
-              <label className="font-semibold">Novo status:</label>
-              <select
-                value={novoStatus}
-                onChange={(e) => setNovoStatus(e.target.value)}
-                className="border p-1 rounded w-full mt-1"
-              >
-                <option value="aberto">Aberto</option>
-                <option value="em andamento">Em andamento</option>
-                <option value="encerrado">Encerrado</option>
-              </select>
-            </div>
+) : null}
 
-            <div className="mt-4">
-              <label className="font-semibold">Observação:</label>
-              <input
-                type="text"
-                value={novaObs}
-                onChange={(e) => setNovaObs(e.target.value)}
-                className="border p-1 rounded w-full mt-1"
-                placeholder="Digite uma observação"
-              />
-            </div>
+      {/* STATUS */}
+      <div className="mt-4">
+        <label className="font-semibold">Novo status:</label>
+        <select
+          value={novoStatus}
+          onChange={(e) => setNovoStatus(e.target.value)}
+          className="border p-1 rounded w-full mt-1"
+        >
+          <option value="aberto">Aberto</option>
+          <option value="em andamento">Em andamento</option>
+          <option value="encerrado">Encerrado</option>
+        </select>
+      </div>
 
-            <div className="mt-4 flex justify-end gap-2">
-              <button
-                onClick={handleSalvar}
-                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"
-              >
-                Salvar
-              </button>
-              <button
-                onClick={() => setSelectedOrdem(null)}
-                className="bg-gray-300 px-4 py-2 rounded hover:bg-gray-400 transition"
-              >
-                Fechar
-              </button>
-            </div>
+      {/* OBSERVAÇÃO */}
+      <div className="mt-4">
+        <label className="font-semibold">Observação:</label>
+        <input
+          type="text"
+          value={novaObs}
+          onChange={(e) => setNovaObs(e.target.value)}
+          className="border p-1 rounded w-full mt-1"
+          placeholder="Digite uma observação"
+        />
+      </div>
+
+      {/* BOTÕES */}
+      <div className="mt-4 flex justify-end gap-2">
+        <button
+          onClick={handleSalvar}
+          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"
+        >
+          Salvar
+        </button>
+        <button
+          onClick={() => setSelectedOrdem(null)}
+          className="bg-gray-300 px-4 py-2 rounded hover:bg-gray-400 transition"
+        >
+          Fechar
+        </button>
+      </div>
 
             {selectedOrdem.observacoes && selectedOrdem.observacoes.length > 0 && (
               <div className="mt-4 max-h-40 overflow-y-auto border-t pt-2">
