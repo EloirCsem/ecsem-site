@@ -16,16 +16,17 @@ import {
   deleteDoc,
   arrayUnion,
   orderBy,
-  limit
+  limit,
+  onSnapshot
 } from "firebase/firestore";
 import Image from "next/image";
 import { FiTrash2 } from "react-icons/fi"; // ícone de lixeira
-
+import { FiFileText } from "react-icons/fi";
 // Bibliotecas para exportação
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-
+import { runTransaction } from "firebase/firestore";
 // Bibliotecas para gráficos
 import { Bar, Line } from "react-chartjs-2";
 import {
@@ -71,86 +72,129 @@ export default function Dashboard() {
   const [novaDescricao, setNovaDescricao] = useState("");
   const [usuario, setUsuario] = useState(null);
   const [usuarios, setUsuarios] = useState([]);
+  const [clientes, setClientes] = useState([]);
+const [clienteSelecionado, setClienteSelecionado] = useState("");
+  
 
   const router = useRouter();
 
 
   // busca usuarios (admin e gestor)
   const fetchUsuarios = async (userData) => {
-    try {
-      let snapshot;
-      if (!userData) return;
+  if (!userData) return;
 
-      if (userData.isAdmin) {
-        snapshot = await getDocs(collection(db, "usuarios"));
-      } else if (userData.isGestor) {
-        const q = query(
-          collection(db, "usuarios"),
-          where("clienteId", "==", userData.uid)
-        );
-        snapshot = await getDocs(q);
-      } else {
-        setUsuarios([]);
-        return;
-      }
+  try {
+    let q;
 
-      const listaUsuarios = snapshot.docs.map(d => ({
-        uid: d.id,
-        ...d.data(),
-      }));
-
-      setUsuarios(listaUsuarios);
-    } catch (err) {
-      console.error("Erro ao buscar usuários:", err);
-      setUsuarios([]);
+    if (userData.isAdmin) {
+      // 👑 Admin vê todos
+      q = query(
+        collection(db, "usuarios"),
+        where("tipo", "==", "tecnico")
+      );
+    } else {
+      // 👔 Gestor vê só os dele
+      q = query(
+        collection(db, "usuarios"),
+        where("tipo", "==", "tecnico"),
+        where("clienteId", "==", userData.uid)
+      );
     }
-  };
+
+    const snapshot = await getDocs(q);
+
+    const lista = snapshot.docs.map(d => ({
+      uid: d.id,
+      ...d.data(),
+    }));
+
+    console.log("TÉCNICOS FILTRADOS:", lista);
+
+    setUsuarios(lista);
+  } catch (err) {
+    console.error("Erro ao buscar técnicos:", err);
+    setUsuarios([]);
+  }
+};
 
   // detectar login + buscar dados + ordens + usuários
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (!user) {
-        setOrdens([]);
-        setUsuario(null);
-        setLoading(false);
-        return;
+ useEffect(() => {
+  let unsubscribeOrdens = null;
+
+  const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
+    if (!user) {
+
+      if (unsubscribeOrdens) {
+        unsubscribeOrdens();
+        unsubscribeOrdens = null;
       }
 
-      try {
-        const userDocRef = doc(db, "usuarios", user.uid);
-        const userSnap = await getDoc(userDocRef);
+      setUsuario(null);
+      setOrdens([]);
+      setLoading(false);
+      return;
+    }
 
-        let userData = { uid: user.uid, isGestor: false, isAdmin: false };
+    try {
+      const userRef = doc(db, "usuarios", user.uid);
+      const userSnap = await getDoc(userRef);
 
-        if (userSnap.exists()) {
-  const u = userSnap.data();
-  userData = {
-    uid: user.uid,
-    nome: u.nome || null,            // caso use "nome"
-    tecnicoNome: u.tecnicoNome || u.nome || null, 
-    email: user.email,
-    isGestor: !!u.isGestor,
-    isAdmin: !!u.isAdmin,
-  };
-}
+      console.log("UID LOGADO:", user.uid);
+      console.log("DOC EXISTS:", userSnap.exists());
 
-        setUsuario(userData);
+      let userData = {
+        uid: user.uid,
+        isAdmin: false,
+        isGestor: false,
+        isCliente: false,
+        nome: "",
+        gestorId: "",
+      };
 
-        fetchOrdens(userData);
+      if (userSnap.exists()) {
+        const u = userSnap.data();
 
-        if (userData.isAdmin || userData.isGestor) {
-          fetchUsuarios(userData);
-        } else {
-          setUsuarios([]);
+        console.log("USER FIREBASE:", u);
+        console.log("TIPO USUÁRIO:", u.tipo);
+
+        userData.isAdmin = u.isAdmin || false;
+        userData.isGestor = u.isGestor || false;
+        userData.isCliente = u.tipo === "cliente";
+
+        userData.nome = u.nome || u.email || "";
+        userData.gestorId = u.gestorId || "";
+
+        if (u.tipo === "cliente") {
+          setClienteSelecionado(user.uid);
+          setNovoCliente(u.nome || u.email);
         }
-
-      } catch (err) {
-        console.error("Erro ao buscar dados do usuário:", err);
       }
-    });
 
-    return () => unsubscribe();
-  }, []);  // Aqui você adiciona a função fetchOrdens(userData) como já tem
+      setUsuario(userData);
+
+      if (unsubscribeOrdens) {
+        unsubscribeOrdens();
+      }
+
+      unsubscribeOrdens = await fetchOrdens(userData);
+
+      await fetchUsuarios(userData);
+
+    } catch (e) {
+      console.error("Erro auth:", e);
+    } finally {
+      setLoading(false);
+    }
+  });
+
+  return () => {
+    if (unsubscribeOrdens) {
+      unsubscribeOrdens();
+    }
+
+    unsubscribeAuth();
+  };
+}, []);
 
 
 const handleAtribuirTecnico = async (ordemId, novoTecnicoUid) => {
@@ -185,24 +229,35 @@ const handleAtribuirTecnico = async (ordemId, novoTecnicoUid) => {
   };
 
   // Buscar ordens
-  
+  // 🔍 Buscar ordens de serviço conforme o tipo de usuário
+
   const fetchOrdens = async (userData) => {
   if (!userData) return;
-  setLoading(true);
+
   try {
     let q;
+
     if (userData.isAdmin) {
-      // super-admin: vê tudo
-      q = query(collection(db, "ordens_servico"), orderBy("numeroOs", "asc"));
-    } else if (userData.isGestor) {
-      // gestor/cliente: vê apenas ordens do seu cliente
+      q = query(
+        collection(db, "ordens_servico"),
+        orderBy("numeroOs", "asc")
+      );
+
+    } else if (userData.isCliente) {
       q = query(
         collection(db, "ordens_servico"),
         where("clienteId", "==", userData.uid),
         orderBy("numeroOs", "asc")
       );
+
+    } else if (userData.isGestor) {
+      q = query(
+        collection(db, "ordens_servico"),
+        where("gestorId", "==", userData.uid),
+        orderBy("numeroOs", "asc")
+      );
+
     } else {
-      // técnico: vê apenas ordens atribuidas a ele (ou que ele criou — escolha)
       q = query(
         collection(db, "ordens_servico"),
         where("tecnicoId", "==", userData.uid),
@@ -210,48 +265,72 @@ const handleAtribuirTecnico = async (ordemId, novoTecnicoUid) => {
       );
     }
 
-    const snapshot = await getDocs(q);
-    const ordensUsuario = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
-    setOrdens(ordensUsuario);
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const lista = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+
+      setOrdens(lista);
+      setLoading(false);
+    });
+
+    return unsubscribe;
+
   } catch (error) {
     console.error("Erro ao buscar OS:", error);
-  } finally {
     setLoading(false);
   }
 };
 
 useEffect(() => {
-  const unsubscribe = onAuthStateChanged(auth, async (user) => {
-    if (!user) {
-      setOrdens([]);
-      setUsuario(null);
-      setLoading(false);
-      return;
-    }
+  const user = auth.currentUser;
+  if (!user || !usuario) return;
 
+  const buscarClientes = async () => {
     try {
-      const userDocRef = doc(db, "usuarios", user.uid);
-      const userSnap = await getDoc(userDocRef);
-      let userData = { uid: user.uid, isGestor: false, isAdmin: false };
 
-      if (userSnap.exists()) {
-        const u = userSnap.data();
-        userData.isGestor = u.isGestor || false;
-        userData.isAdmin = u.isAdmin || false;
-      }
-
-      setUsuario(userData);
-      fetchOrdens(userData);
-    } catch (err) {
-      console.error("Erro ao buscar dados do usuário:", err);
+      // 👤 SE FOR CLIENTE → ele só vê ele mesmo
+      if (usuario?.isCliente) {
+  setClientes([
+    {
+      id: usuario.uid,
+      nome: usuario.nome || usuario.email || "Cliente"
     }
-  });
+  ]);
 
-  return () => unsubscribe();
-}, []);
+  setClienteSelecionado(usuario.uid);
+  setNovoCliente(usuario.nome || usuario.email || "");
+
+  return;
+}
+
+      // 👔 SE FOR GESTOR → busca clientes dele
+      const q = query(
+        collection(db, "usuarios"),
+        where("tipo", "==", "cliente"),
+        where("gestorId", "==", user.uid),
+        where("ativo", "==", true)
+      );
+
+      const snapshot = await getDocs(q);
+
+      const lista = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+
+      setClientes(lista);
+
+    } catch (error) {
+      console.error("Erro ao buscar clientes:", error);
+    }
+  };
+
+  buscarClientes();
+}, [usuario]);
+
+
   // Cores
   const getStatusColor = (status = "") => {
     switch (status.toLowerCase()) {
@@ -305,83 +384,120 @@ useEffect(() => {
 // import { collection, query, orderBy, limit, getDocs, doc, setDoc, getDoc } from "firebase/firestore";
 
 const handleCriarOS = async () => {
-  // validação simples dos campos do modal
   if (!novoCliente || !novoModelo || !novoSerie || !novaDescricao) {
     alert("Preencha todos os campos obrigatórios!");
     return;
   }
 
   const user = auth.currentUser;
-  if (!user) return alert("Usuário não autenticado");
+  if (!user) {
+    alert("Usuário não autenticado");
+    return;
+  }
 
-  setLoading(true);
   try {
-    // 1) pegar maior numeroOs existente (ordenado desc)
-    const q = query(collection(db, "ordens_servico"), orderBy("numeroOs", "desc"), limit(1));
-    const snapshot = await getDocs(q);
-    let proximoNumero = 1;
-    if (!snapshot.empty) {
-      const maior = snapshot.docs[0].data().numeroOs;
-      proximoNumero = Number(maior) + 1;
-    }
-    const novaId = proximoNumero.toString(); // id do documento
+    // 🔢 Buscar próximo número da OS
+    const contadorRef = doc(db, "contadores", "ordemServico");
 
-    // 2) pegar doc do usuário para achar clienteId (se técnico)
-    const userDocRef = doc(db, "usuarios", user.uid);
-    const userSnap = await getDoc(userDocRef);
-    let clienteIdParaSalvar = user.uid; // default (se gestor cria para si)
+const numeroOsStr = await runTransaction(db, async (transaction) => {
+  const contadorDoc = await transaction.get(contadorRef);
+
+  let novoNumero = 1;
+
+  if (!contadorDoc.exists()) {
+    transaction.set(contadorRef, { ultimoNumero: 1 });
+    return 1;
+  }
+
+  const ultimoNumero = contadorDoc.data().ultimoNumero || 0;
+  novoNumero = ultimoNumero + 1;
+
+  transaction.update(contadorRef, {
+    ultimoNumero: novoNumero,
+  });
+
+  return novoNumero;
+});
+
+    
+
+    // 👤 Buscar dados do usuário logado
+    const userSnap = await getDoc(doc(db, "usuarios", user.uid));
+
+    let clienteIdFinal = user.uid;
+    let gestorIdFinal = user.uid;
+    let gestorNomeFinal = "";
+
     if (userSnap.exists()) {
       const u = userSnap.data();
-      if (u.clienteId) {
-        // se for técnico, usa o clienteId do seu doc
-        clienteIdParaSalvar = u.clienteId;
+
+      if (u.tipo === "cliente") {
+        // 👤 Cliente criando
+        clienteIdFinal = user.uid;
+        gestorIdFinal = u.gestorId;
+
+        // 🔥 Buscar nome do gestor
+        if (u.gestorId) {
+          const gestorSnap = await getDoc(doc(db, "usuarios", u.gestorId));
+          if (gestorSnap.exists()) {
+            const gestorData = gestorSnap.data();
+            gestorNomeFinal = gestorData.nome || gestorData.email || "";
+          }
+        }
+
       } else if (u.isGestor) {
-        // se for gestor, clienteId = proprio uid
-        clienteIdParaSalvar = user.uid;
-      } else {
-        clienteIdParaSalvar = user.uid; // fallback seguro
+        // 👔 Gestor criando
+        clienteIdFinal = clienteSelecionado || user.uid;
+        gestorIdFinal = user.uid;
+        gestorNomeFinal = u.nome || u.email || "";
       }
     }
 
-    // 3) montar objeto da OS
-    const novaOSData = {
-      numeroOs: novaId,
+    // 📦 Criar objeto da OS
+    const novaOS = {
+      numeroOs: numeroOsStr,
       cliente: novoCliente,
+      clienteId: clienteIdFinal,
+
+      gestorId: gestorIdFinal,
+      gestorNome: gestorNomeFinal, // 🔥 AGORA SALVA
+
       modelo: novoModelo,
       numeroSerie: novoSerie,
       descricao: novaDescricao,
-      status: "Aberto",
-      usuarioId: user.uid,            // quem criou
-      clienteId: clienteIdParaSalvar, // vinculo do cliente/gestor
-    
+      status: "aberto",
+
+      usuarioId: user.uid,
+      tecnicoId: "",
+      tecnico: "",
+
       inicio: "",
       fim: "",
       observacoes: [],
       solicitacaoPecas: "",
       pecasUsadas: "",
+
       dataCriacao: new Date().toISOString()
     };
 
-    // 4) salvar no Firestore usando o numero como ID (compatibilidade com app)
-    await setDoc(doc(db, "ordens_servico", novaId), novaOSData);
+    // 💾 Salvar
+    await setDoc(
+      doc(db, "ordens_servico", numeroOsStr.toString()),
+      novaOS
+    );
 
-    // 5) atualizar state local para aparecer imediatamente na UI
-    setOrdens(prev => [...prev, { id: novaId, ...novaOSData }]);
+    alert(`OS ${numeroOsStr} criada com sucesso`);
 
-    // 6) limpar modal e campos
+    // 🧹 Limpar formulário
     setNovoCliente("");
     setNovoModelo("");
     setNovoSerie("");
     setNovaDescricao("");
     setModalCriar(false);
 
-    // opcional: sucesso
-    alert(`OS criada: ${novaId}`);
-  } catch (err) {
-    console.error("Erro ao criar OS:", err);
-    alert("Erro ao criar OS. Veja o console.");
-  } finally {
-    setLoading(false);
+  } catch (error) {
+    console.error("Erro ao criar OS:", error);
+    alert("Erro ao criar OS");
   }
 };
 
@@ -544,12 +660,62 @@ const handleCriarOS = async () => {
                   className="flex cursor-pointer rounded shadow hover:shadow-lg transition relative"
                   onClick={() => handleSelectOrdem(os)}
                 >
+
+                <div className="flex flex-col p-2 text-sm flex-1">
+ 
+ <div className="flex flex-col p-3 flex-1">
+
+  <div className="flex justify-between items-center">
+    <h3 className="font-bold text-lg">
+      OS #{os.numeroOs}
+    </h3>
+
+    <span
+      className={`px-2 py-1 text-xs rounded-full text-white ${
+        os.status === "aberto"
+          ? "bg-green-500"
+          : os.status === "em andamento"
+          ? "bg-blue-500"
+          : "bg-red-500"
+      }`}
+    >
+      {os.status}
+    </span>
+  </div>
+
+  <p className="text-gray-700 mt-2">
+    👤 {os.cliente}
+  </p>
+
+  <p className="text-gray-700">
+    🔧 {os.modelo}
+  </p>
+
+  <p className="text-gray-500 text-sm mt-2">
+    Técnico: {os.tecnico || "Não atribuído"}
+  </p>
+
+</div>
+
+<button
+  onClick={(e) => {
+    e.stopPropagation();
+
+    if (!os.pdfUrl) {
+      alert("PDF ainda não disponível.");
+      return;
+    }
+
+    window.open(os.pdfUrl, "_blank");
+  }}
+  className="mt-3 w-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium py-2 px-3 rounded-lg transition flex items-center justify-center gap-2"
+>
+  <FiFileText size={14} />
+  Visualizar Relatório
+</button>
+</div>
                   <div className={`w-2 rounded-l ${getStatusColor(os.status)}`}></div>
-                  <div className="flex flex-col p-2 text-sm flex-1">
-                    <p className="font-semibold">#{os.numeroOs}</p>
-                    <p className="capitalize">{os.status}</p>
-                    <p>{os.data}</p>
-                  </div>
+                  
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -630,13 +796,25 @@ const handleCriarOS = async () => {
           <div className="bg-white p-6 rounded-lg w-full max-w-md shadow-lg overflow-y-auto max-h-[80vh]">
             <h2 className="text-xl font-bold mb-4">Criar Nova OS</h2>
             <div className="flex flex-col gap-3">
-              <input
-                type="text"
-                placeholder="Cliente *"
-                value={novoCliente}
-                onChange={(e) => setNovoCliente(e.target.value)}
-                className="border p-2 rounded"
-              />
+              <select
+  value={clienteSelecionado}
+  onChange={(e) => {
+    const clienteId = e.target.value;
+    setClienteSelecionado(clienteId);
+
+    const clienteObj = clientes.find(c => c.id === clienteId);
+    setNovoCliente(clienteObj?.nome || "");
+  }}
+  className="border p-2 rounded"
+>
+  <option value="">Selecione o cliente *</option>
+
+  {clientes.map(c => (
+    <option key={c.id} value={c.id}>
+      {c.nome}
+    </option>
+  ))}
+</select>
               <input
                 type="text"
                 placeholder="Modelo *"
@@ -701,51 +879,61 @@ const handleCriarOS = async () => {
  {usuario?.isAdmin || usuario?.isGestor ? (
   <div className="mt-4">
     <label className="font-semibold">Responsável:</label>
-    <select
-      value={selectedOrdem.tecnicoId || ""}
-      onChange={async (e) => {
-        const novoTecnicoUid = e.target.value;
-        const ordemRef = doc(db, "ordens_servico", selectedOrdem.numeroOs.toString());
+      <select
+        value={selectedOrdem.tecnicoId || ""}
+        className="border p-1 rounded w-full mt-1"
+        
+        onChange={async (e) => {
+    const novoTecnicoUid = e.target.value;
+    if (!novoTecnicoUid) return;
 
-        // Buscar dados completos do técnico selecionado
-        const tecnicoSelecionado = usuarios.find(u => u.uid === novoTecnicoUid);
+  const ordemRef = doc(
+    db,
+    "ordens_servico",
+    selectedOrdem.id
+  );
+    const tecnicoSelecionado = usuarios.find(
+      u => u.uid === novoTecnicoUid
+    );
 
-        // Atualizar Firestore com TODOS os campos necessários
-        await updateDoc(ordemRef, {
-          tecnicoId: novoTecnicoUid,     // <- CAMPO CORRETO!!!
-          tecnicoUid: novoTecnicoUid,    // compatibilidade
-          usuarioId: novoTecnicoUid,     // opcional, se usa esse campo também
-          tecnico: tecnicoSelecionado?.nome || tecnicoSelecionado?.email || "",
-          tecnicoEmail: tecnicoSelecionado?.email || "",
-          tecnicoNome: tecnicoSelecionado?.nome || "",
-        });
+    try {
+      await updateDoc(ordemRef, {
+        tecnicoId: novoTecnicoUid, // 🔑 CAMPO ÚNICO DE CONTROLE
+        tecnico: tecnicoSelecionado?.nome || tecnicoSelecionado?.email || "",
+        tecnicoNome: tecnicoSelecionado?.nome || "",
+        tecnicoEmail: tecnicoSelecionado?.email || "",
+      });
 
-        // Atualizar no modal
-        setSelectedOrdem(prev => ({
-          ...prev,
-          tecnicoId: novoTecnicoUid,
-          tecnicoUid: novoTecnicoUid,
-          usuarioId: novoTecnicoUid,
-          tecnico: tecnicoSelecionado?.nome || tecnicoSelecionado?.email || "",
-        }));
+    // Atualiza modal
+    setSelectedOrdem(prev => ({
+      ...prev,
+      tecnicoId: novoTecnicoUid,
+      tecnico: tecnicoSelecionado?.nome || tecnicoSelecionado?.email || "",
+    }));
 
-        // Atualizar lista principal
-        setOrdens(prev =>
-          prev.map(o =>
-            o.numeroOs === selectedOrdem.numeroOs
-              ? {
-                  ...o,
-                  tecnicoId: novoTecnicoUid,
-                  tecnicoUid: novoTecnicoUid,
-                  usuarioId: novoTecnicoUid,
-                  tecnico: tecnicoSelecionado?.nome || tecnicoSelecionado?.email || "",
-                }
-              : o
-          )
-        );
-      }}
-      className="border p-1 rounded w-full mt-1"
+    // Atualiza lista principal
+    setOrdens(prev =>
+      prev.map(o =>
+        o.numeroOs === selectedOrdem.numeroOs
+          ? {
+              ...o,
+              tecnicoId: novoTecnicoUid,
+              tecnico: tecnicoSelecionado?.nome || tecnicoSelecionado?.email || "",
+            }
+          : o
+      ) 
+    );
+  } catch (err) {
+    console.error("Erro ao atribuir técnico:", err);
+    alert("Erro ao atribuir técnico");
+  }
+}}
+      
+      
     >
+      <option value="">
+  Selecione um técnico
+</option>
       {usuarios.map(u => (
         <option key={u.uid} value={u.uid}>
           {u.nome || u.email}
@@ -763,9 +951,9 @@ const handleCriarOS = async () => {
           onChange={(e) => setNovoStatus(e.target.value)}
           className="border p-1 rounded w-full mt-1"
         >
-          <option value="aberto">Aberto</option>
-          <option value="em andamento">Em andamento</option>
-          <option value="encerrado">Encerrado</option>
+          <option value="aberto">aberto</option>
+          <option value="em andamento">em andamento</option>
+          <option value="encerrado">encerrado</option>
         </select>
       </div>
 
