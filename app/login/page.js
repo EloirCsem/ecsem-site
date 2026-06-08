@@ -1,22 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { auth } from "../../firebaseConfig";
 import {
   signInWithEmailAndPassword,
   setPersistence,
   inMemoryPersistence
 } from "firebase/auth";
-import { useSearchParams } from "next/navigation";
-import { useRouter } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 
-export default function LoginPage() {
+function LoginForm() {
 
-const searchParams = useSearchParams();
+  const searchParams = useSearchParams();
 
-const redirect =
-  searchParams.get("redirect") ||
-  "/painel/dashboard";
+  const redirect =
+    searchParams.get("redirect") ||
+    "/painel/dashboard";
 
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
@@ -26,30 +25,29 @@ const redirect =
 
   async function entrar() {
 
-  try {
+    try {
 
-    await setPersistence(
-      auth,
-      inMemoryPersistence
-    );
+      await setPersistence(
+        auth,
+        inMemoryPersistence
+      );
 
-    await signInWithEmailAndPassword(
-      auth,
-      email,
-      senha
-    );
+      await signInWithEmailAndPassword(
+        auth,
+        email,
+        senha
+      );
 
-   router.push(redirect);
+      router.push(redirect);
 
-  } catch {
+    } catch {
 
-    setErro("Usuário ou senha inválidos");
+      setErro("Usuário ou senha inválidos");
 
+    }
   }
-}
 
   return (
-
     <div className="min-h-screen flex items-center justify-center bg-slate-900">
 
       <div className="bg-slate-800 p-8 rounded-2xl w-full max-w-md">
@@ -90,5 +88,13 @@ const redirect =
       </div>
 
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div>Carregando...</div>}>
+      <LoginForm />
+    </Suspense>
   );
 }
