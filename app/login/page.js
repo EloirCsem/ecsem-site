@@ -7,7 +7,8 @@ import {
   setPersistence,
   inMemoryPersistence
 } from "firebase/auth";
-import { useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
+
 
 export default function LoginPage() {
 
