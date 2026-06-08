@@ -33,7 +33,7 @@ export default function LoginPage() {
       senha
     );
 
-   router.push(redirect);
+   router.push("/painel/dashboard");
 
   } catch {
 
