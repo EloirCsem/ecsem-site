@@ -7,11 +7,16 @@ import {
   setPersistence,
   inMemoryPersistence
 } from "firebase/auth";
+import { useSearchParams } from "next/navigation";
 import { useRouter } from "next/navigation";
-
 
 export default function LoginPage() {
 
+const searchParams = useSearchParams();
+
+const redirect =
+  searchParams.get("redirect") ||
+  "/painel/dashboard";
 
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
@@ -34,7 +39,7 @@ export default function LoginPage() {
       senha
     );
 
-   router.push("/painel/dashboard");
+   router.push(redirect);
 
   } catch {
 
