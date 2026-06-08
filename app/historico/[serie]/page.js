@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { auth } from "../../../firebaseConfig";
+import { onAuthStateChanged } from "firebase/auth";
+import { useRouter } from "next/navigation";
 import { db } from "../../../firebaseConfig";
 import {
   collection,
@@ -14,36 +17,67 @@ export default function Historico({ params }) {
 
   const [ordens, setOrdens] = useState([]);
 
+  const [loadingAuth, setLoadingAuth] = useState(true);
+
+const router = useRouter();
+
   const { serie } = use(params);
 
-  useEffect(() => {
+useEffect(() => {
 
-    async function carregar() {
+  const unsubscribe = onAuthStateChanged(
+    auth,
+    (user) => {
 
-      const q = query(
-        collection(db, "ordens_servico"),
-        where("numeroSerie", "==", serie)
-      );
+      if (!user) {
 
-      const snap = await getDocs(q);
+        router.push(
+          `/login?redirect=/historico/${serie}`
+        );
 
-      const dados = snap.docs
-  .map(doc => ({
-    id: doc.id,
-    ...doc.data()
-  }))
-  .sort(
-    (a, b) =>
-      Number(b.numeroOs) -
-      Number(a.numeroOs)
+      } else {
+
+        setLoadingAuth(false);
+
+      }
+
+    }
   );
 
-      setOrdens(dados);
-    }
+  return () => unsubscribe();
 
-    carregar();
+}, [router, serie]);
 
-  }, [serie]);
+useEffect(() => {
+
+  if (loadingAuth) return;
+
+  async function carregar() {
+
+    const q = query(
+      collection(db, "ordens_servico"),
+      where("numeroSerie", "==", serie)
+    );
+
+    const snap = await getDocs(q);
+
+    const dados = snap.docs
+      .map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }))
+      .sort(
+        (a, b) =>
+          Number(b.numeroOs) -
+          Number(a.numeroOs)
+      );
+
+    setOrdens(dados);
+  }
+
+  carregar();
+
+}, [serie, loadingAuth]);
 
 return (
 

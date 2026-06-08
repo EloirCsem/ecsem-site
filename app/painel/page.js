@@ -2,7 +2,12 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { signInWithEmailAndPassword } from "firebase/auth";
+
+import {
+  signInWithEmailAndPassword,
+  setPersistence,
+  browserSessionPersistence
+} from "firebase/auth";
 import { auth } from "../../firebaseConfig";
 import { FiMail, FiLock, FiLogIn } from "react-icons/fi";
 
@@ -14,20 +19,39 @@ export default function ClienteLogin() {
   const router = useRouter();
 
   const handleLogin = async (e) => {
-    e.preventDefault();
-    setErro("");
-    setLoading(true);
+  e.preventDefault();
+  setErro("");
+  setLoading(true);
 
-    try {
-      await signInWithEmailAndPassword(auth, email, senha);
-      router.push("/painel/dashboard");
-    } catch (err) {
-      console.error(err);
-      setErro("Email ou senha inválidos. Tente novamente.");
-    } finally {
-      setLoading(false);
-    }
-  };
+  try {
+
+    await setPersistence(
+      auth,
+      browserSessionPersistence
+    );
+
+    await signInWithEmailAndPassword(
+      auth,
+      email,
+      senha
+    );
+
+    router.push("/painel/dashboard");
+
+  } catch (err) {
+
+    console.error(err);
+
+    setErro(
+      "Email ou senha inválidos. Tente novamente."
+    );
+
+  } finally {
+
+    setLoading(false);
+
+  }
+};
 
   return (
     <main className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 via-gray-100 to-blue-100 px-6">
