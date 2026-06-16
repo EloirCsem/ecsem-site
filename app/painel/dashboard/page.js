@@ -124,16 +124,14 @@ const [clienteSelecionado, setClienteSelecionado] = useState("");
   const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
     if (!user) {
 
-      if (unsubscribeOrdens) {
-        unsubscribeOrdens();
-        unsubscribeOrdens = null;
-      }
+  if (unsubscribeOrdens) {
+    unsubscribeOrdens();
+    unsubscribeOrdens = null;
+  }
 
-      setUsuario(null);
-      setOrdens([]);
-      setLoading(false);
-      return;
-    }
+  router.push("/login");
+  return;
+}
 
     try {
       const userRef = doc(db, "usuarios", user.uid);

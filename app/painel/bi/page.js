@@ -1,386 +1,462 @@
-"use client";
+    "use client";
 
-import { useEffect, useState } from "react";
-import { auth, db } from "../../../firebaseConfig";
-import { collection, onSnapshot, query, where } from "firebase/firestore";
-import {
-  PieChart,
-  Pie,
-  Cell,
-  ResponsiveContainer
-} from "recharts";
+    import { useEffect, useState } from "react";
+    import { auth, db } from "../../../firebaseConfig";
+    import { collection, onSnapshot, query, where } from "firebase/firestore";
+    import {
+      PieChart,
+      Pie,
+      Cell,
+      ResponsiveContainer
+    } from "recharts";
 
 
-/* 🔹 KPI COMPONENT */
-function KPI({ titulo, valor, destaque }) {
-  return (
-    <div
-      className={`rounded-2xl p-8 text-center font-bold shadow-xl ${
-        destaque
-          ? "bg-red-300 text-red-900"
-          : "bg-gradient-to-br from-white to-slate-100"
-      }`}
-    >
-      <p className="text-lg tracking-widest uppercase">
-        {titulo}
-      </p>
+    /* 🔹 KPI COMPONENT */
+    function KPI({ titulo, valor, destaque }) {
+      return (
+        <div
+          className={`rounded-2xl p-8 text-center font-bold shadow-xl ${
+            destaque
+              ? "bg-red-300 text-red-900"
+              : "bg-gradient-to-br from-white to-slate-100"
+          }`}
+        >
+          <p className="text-lg tracking-widest uppercase">
+            {titulo}
+          </p>
 
-      <p className="text-4xl mt-8">
-        {valor}
-      </p>
-    </div>
-  );
-}
+          <p className="text-4xl mt-8">
+            {valor}
+          </p>
+        </div>
+      );
+    }
 
-export default function BI() {
-  const [ordens, setOrdens] = useState([]);
-  const [user, setUser] = useState(null);
-  const [hora, setHora] = useState(new Date());
-  const [dataInicial, setDataInicial] = useState("");
-const [dataFinal, setDataFinal] = useState("");
+    export default function BI() {
+      const [ordens, setOrdens] = useState([]);
+      const [user, setUser] = useState(null);
+      const [hora, setHora] = useState(new Date());
+      const [dataInicial, setDataInicial] = useState("");
+     const [dataFinal, setDataFinal] = useState("");
+     const [tecnicoFiltro, setTecnicoFiltro] = useState("");
+     const [clienteFiltro, setClienteFiltro] = useState("");
+     const [listaTecnicos, setListaTecnicos] = useState([]);
+     const [listaClientes, setListaClientes] = useState([]);
 
-  /* 🔐 Usuário logado */
-  useEffect(() => {
-    const unsub = auth.onAuthStateChanged(u => {
-      if (u) setUser(u);
-    });
-    return () => unsub();
-  }, []);
+      /* 🔐 Usuário logado */
+      useEffect(() => {
+        const unsub = auth.onAuthStateChanged(u => {
+          if (u) setUser(u);
+        });
+        return () => unsub();
+      }, []);
 
-  const [mounted, setMounted] = useState(false);
+    useEffect(() => {
+  if (!user?.uid) return;
 
-  const [aba, setAba] = useState("operacao");
-  
+  const unsub = onSnapshot(collection(db, "usuarios"), snap => {
+    const techs = snap.docs
+      .map(d => {
+        const u = d.data();
+
+        const tipo = String(u.tipo || u.role || "")
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .trim();
+
+        const gestorOk = u.gestorId === user.uid;
+
+        if (tipo !== "tecnico") return null;
+        if (!gestorOk) return null;
+
+        return (u.nome || u.displayName || "").trim();
+      })
+      .filter(Boolean);
+
+    setListaTecnicos([...new Set(techs)]);
+  });
+
+  return () => unsub();
+}, [user?.uid]);
+
 useEffect(() => {
-  setMounted(true);
-}, []);
+  if (!user) return;
 
-  /* ⏱️ Relógio ao vivo */
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setHora(new Date());
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
+  const unsub = onSnapshot(collection(db, "usuarios"), snap => {
+    const clients = snap.docs
+      .map(d => {
+        const u = d.data();
 
-  /* 🔥 Firestore em tempo real (segurança por gestor) */
-  useEffect(() => {
-    if (!user) return;
+        const tipo = String(u.tipo || u.role || "")
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .trim();
 
-    const q = query(
-  collection(db, "ordens_servico"),
-  where("gestorId", "==", user.uid)
-);
+        const gestorOk = u.gestorId === user.uid;
 
-    const unsub = onSnapshot(q, snap => {
-      const dados = snap.docs
-  .map(d => ({
-    id: d.id,
-    ...d.data()
-  }))
-  .sort((a, b) => Number(b.numeroOs) - Number(a.numeroOs));
-      setOrdens(dados);
+        if (tipo !== "cliente") return null;
+        if (!gestorOk) return null;
+
+        return (u.nome || u.displayName || "").trim();
+      })
+      .filter(Boolean);
+
+    setListaClientes([...new Set(clients)]);
+  });
+
+  return () => unsub();
+}, [user]);
+
+
+      const [mounted, setMounted] = useState(false);
+
+      const [aba, setAba] = useState("operacao");
+      
+    useEffect(() => {
+      setMounted(true);
+    }, []);
+
+      /* ⏱️ Relógio ao vivo */
+      useEffect(() => {
+        const timer = setInterval(() => {
+          setHora(new Date());
+        }, 1000);
+        return () => clearInterval(timer);
+      }, []);
+
+      /* 🔥 Firestore em tempo real (segurança por gestor) */
+      useEffect(() => {
+        if (!user) return;
+
+        const q = query(
+      collection(db, "ordens_servico"),
+      where("gestorId", "==", user.uid)
+    );
+
+        const unsub = onSnapshot(q, snap => {
+          const dados = snap.docs
+      .map(d => ({
+        id: d.id,
+        ...d.data()
+      }))
+      .sort((a, b) => Number(b.numeroOs) - Number(a.numeroOs));
+          setOrdens(dados);
+        });
+
+        return () => unsub();
+      }, [user]);
+
+      /* 🧠 Nome do gestor (sem e-mail feio) */
+      const nomeGestor = user?.email
+        ? user.email.split("@")[0].toUpperCase()
+        : "";
+
+        
+    const ordensFiltradas = ordens.filter(o => {
+
+      if (!o.dataCriacao) return false;
+
+      if (dataInicial && dataFinal) {
+
+        const dataOS = new Date(o.dataCriacao);
+
+        const inicio = new Date(dataInicial);
+        const fim = new Date(dataFinal);
+
+        fim.setHours(23, 59, 59, 999);
+
+        if (
+          dataOS < inicio ||
+          dataOS > fim
+        ) {
+          return false;
+        }
+      }
+    const norm = (v) => (v || "").trim();
+
+    if (
+      tecnicoFiltro &&
+      norm(o.tecnico) !== norm(tecnicoFiltro)
+    ) {
+      return false;
+    }
+
+      if (
+        clienteFiltro &&
+        o.cliente !== clienteFiltro
+      ) {
+        return false;
+      }
+
+      return true;
     });
 
-    return () => unsub();
-  }, [user]);
-
-  /* 🧠 Nome do gestor (sem e-mail feio) */
-  const nomeGestor = user?.email
-    ? user.email.split("@")[0].toUpperCase()
-    : "";
-
-    
-  const ordensFiltradas = ordens.filter(o => {
-
-  if (!o.dataCriacao) return false;
-
-  if (!dataInicial || !dataFinal) return true;
-
-  const dataOS = new Date(o.dataCriacao);
-
-  const inicio = new Date(dataInicial);
-  const fim = new Date(dataFinal);
-
-  fim.setHours(23, 59, 59, 999);
-
-  return (
-    dataOS >= inicio &&
-    dataOS <= fim
-  );
-});
-
-const dados = ordensFiltradas;
+    const tecnicos = [
+      ...new Set([
+        ...listaTecnicos, // Garante que todos os cadastrados apareçam primeiro
+        ...ordens.map(o => String(o.tecnico || "").trim()) // Adiciona os das OS se houver
+      ])
+    ]
+    .filter(nome => nome && nome !== "undefined" && nome !== "")
+    .sort((a, b) => a.localeCompare(b, "pt-BR"));
 
 
-    
-  /* 📊 KPIs */
-  const abertas = dados.filter(
-  o => (o.status || "").toLowerCase() === "aberto"
-).length;
+    const clientes = [
+      ...new Set(
+        ordens
+          .filter(o => o.cliente)
+          .map(o => o.cliente)
+      )
+    ].sort();
 
-const andamento = dados.filter(
-  o => (o.status || "").toLowerCase() === "em andamento"
-).length;
+    const dados = ordensFiltradas;
 
 
-const encerradas = dados.filter(
-  o => (o.status || "").toLowerCase() === "encerrado"
-).length;
+        
+      /* 📊 KPIs */
+      const abertas = dados.filter(
+      o => (o.status || "").toLowerCase() === "aberto"
+    ).length;
 
-/* =========================
-   TÉCNICOS ATIVOS
-========================= */
+    const andamento = dados.filter(
+      o => (o.status || "").toLowerCase() === "em andamento"
+    ).length;
 
-const tecnicosAtivos = new Set(
-  ordens
+
+    const encerradas = dados.filter(
+      o => (o.status || "").toLowerCase() === "encerrado"
+    ).length;
+
+    /* =========================
+      TÉCNICOS ATIVOS
+    ========================= */
+
+    const tecnicosAtivos = listaTecnicos.length;
+
+const tecnicosComOS = new Set(
+  dados
     .filter(o => o.tecnico && o.tecnico.trim() !== "")
     .map(o => o.tecnico)
 ).size;
 
-/* =========================
-   % CONCLUÍDO
-========================= */
+    /* =========================
+      % CONCLUÍDO
+    ========================= */
 
-const percentualConcluido =
-  ordens.length > 0
-    ? Math.round((encerradas / ordens.length) * 100)
-    : 0;
+    const percentualConcluido =
+      dados.length > 0
+        ? Math.round((encerradas / dados.length) * 100)
+        : 0;
 
-/* =========================
-   MTTR
-========================= */
+    /* =========================
+      MTTR
+    ========================= */
 
-const osEncerradasComTempo = dados.filter(
-  o =>
-    (o.status || "").toLowerCase() === "encerrado" &&
-    o.inicioTimestamp &&
-    o.fimTimestamp
-);
+    const osEncerradasComTempo = dados.filter(
+      o =>
+        (o.status || "").toLowerCase() === "encerrado" &&
+        o.inicioTimestamp &&
+        o.fimTimestamp
+    );
 
-const mttr =
-  osEncerradasComTempo.length > 0
-    ? (
-        osEncerradasComTempo.reduce(
-          (acc, o) =>
-            acc +
-            (o.fimTimestamp - o.inicioTimestamp) /
-              (1000 * 60 * 60),
-          0
-        ) /
-        osEncerradasComTempo.length
-      ).toFixed(1)
-    : "0";
+    const mttr =
+      osEncerradasComTempo.length > 0
+        ? (
+            osEncerradasComTempo.reduce(
+              (acc, o) =>
+                acc +
+                (o.fimTimestamp - o.inicioTimestamp) /
+                  (1000 * 60 * 60),
+              0
+            ) /
+            osEncerradasComTempo.length
+          ).toFixed(1)
+        : "0";
 
-const horasProdutivas =
-  (
-    ordens
-      .filter(
-        o =>
-          (o.status || "").toLowerCase() === "encerrado" &&
-          o.duracaoMinutos
+    const horasProdutivas =
+      (
+        dados
+          .filter(
+            o =>
+              (o.status || "").toLowerCase() === "encerrado" &&
+              o.duracaoMinutos
+          )
+          .reduce(
+            (acc, o) => acc + Number(o.duracaoMinutos || 0),
+            0
+          ) / 60
+      ).toFixed(1);
+
+      const mediaHorasOS =
+      encerradas > 0
+        ? (
+            Number(horasProdutivas) /
+            encerradas
+          ).toFixed(1)
+        : 0;
+
+        const produtividadeTecnicos = {};
+
+    dados.forEach(o => {
+
+      if (
+        (o.status || "").toLowerCase() !== "encerrado"
+      ) return;
+
+      if (!o.tecnico) return;
+
+      produtividadeTecnicos[o.tecnico] =
+        (produtividadeTecnicos[o.tecnico] || 0) +
+        Number(o.duracaoMinutos || 0);
+
+    });
+
+    const tecnicoTop =
+      Object.entries(produtividadeTecnicos)
+        .sort((a, b) => b[1] - a[1])[0];
+
+    const datasUnicas = [
+      ...new Set(
+        dados
+          .filter(o => o.dataCriacao)
+          .map(o =>
+            new Date(o.dataCriacao)
+              .toLocaleDateString("pt-BR")
+          )
       )
-      .reduce(
-        (acc, o) => acc + Number(o.duracaoMinutos || 0),
-        0
-      ) / 60
-  ).toFixed(1);
+    ];
 
-  const mediaHorasOS =
-  encerradas > 0
-    ? (
-        Number(horasProdutivas) /
-        encerradas
-      ).toFixed(1)
-    : 0;
+    let horasDisponiveis = 0;
 
-    const produtividadeTecnicos = {};
+    datasUnicas.forEach(dataStr => {
 
-ordens.forEach(o => {
+      const [dia, mes, ano] = dataStr.split("/");
 
-  if (
-    (o.status || "").toLowerCase() !== "encerrado"
-  ) return;
+      const data = new Date(
+        Number(ano),
+        Number(mes) - 1,
+        Number(dia)
+      );
 
-  if (!o.tecnico) return;
+      const semana = data.getDay();
 
-  produtividadeTecnicos[o.tecnico] =
-    (produtividadeTecnicos[o.tecnico] || 0) +
-    Number(o.duracaoMinutos || 0);
-
-});
-
-const tecnicoTop =
-  Object.entries(produtividadeTecnicos)
-    .sort((a, b) => b[1] - a[1])[0];
-
-const datasUnicas = [
-  ...new Set(
-    ordens
-      .filter(o => o.dataCriacao)
-      .map(o =>
-        new Date(o.dataCriacao)
-          .toLocaleDateString("pt-BR")
-      )
-  )
-];
-
-let horasDisponiveis = 0;
-
-datasUnicas.forEach(dataStr => {
-
-  const [dia, mes, ano] = dataStr.split("/");
-
-  const data = new Date(
-    Number(ano),
-    Number(mes) - 1,
-    Number(dia)
-  );
-
-  const semana = data.getDay();
-
-  // sexta
-  if (semana === 5) {
-    horasDisponiveis +=
-  9 * tecnicosAtivos;
-  }
-
-  // seg a qui
-  else if (
-    semana >= 1 &&
-    semana <= 4
-  ) {
-    horasDisponiveis +=
-  10 * tecnicosAtivos;
-  }
-});
-
-const horasImprodutivas =
-(
-  horasDisponiveis -
-  Number(horasProdutivas)
-).toFixed(1);
-
-const ocupacao =
-horasDisponiveis > 0
-  ? (
-      Number(horasProdutivas) /
-      horasDisponiveis *
-      100
-    ).toFixed(0)
-  : 0;
-
-console.log("Horas Produtivas:", horasProdutivas);
-console.log("Horas Disponiveis:", horasDisponiveis);
-console.log("Tecnicos Ativos:", tecnicosAtivos);
-
-/* =========================
-   SLA
-========================= */
-
-const osComSLA = dados.filter(
-  o =>
-    o.dataCriacao &&
-    o.inicioTimestamp
-);
-
-const slaHoras =
-  osComSLA.length > 0
-    ? (
-        osComSLA.reduce((acc, o) => {
-
-          const criado =
-            new Date(o.dataCriacao).getTime();
-
-          const iniciado =
-            Number(o.inicioTimestamp);
-
-          return (
-            acc +
-            (iniciado - criado) /
-              (1000 * 60 * 60)
-          );
-
-        }, 0) /
-        osComSLA.length
-      ).toFixed(1)
-    : "0";
-
-    
-const totalOS = ordens.length;
-
-  /* 🚨 OS paradas */
-  const DIAS_LIMITE = 2;
-  const agora = Date.now();
-
-  const osParadas = dados.filter(o => {
-
-  if ((o.status || "").toLowerCase() === "encerrado")
-    return false;
-
-  if (!o.dataCriacao)
-    return false;
-
-  const dias =
-    (Date.now() -
-      new Date(o.dataCriacao).getTime()) /
-    (1000 * 60 * 60 * 24);
-
-  return dias >= 7;
-});
-
-  /* 🧠 Tempo médio por técnico */
-  const tempoPorTecnico = {};
-
-  ordens.forEach(o => {
-    if (!o.tecnico || !o.inicioTimestamp || !o.fimTimestamp) return;
-
-    const horas = (o.fimTimestamp - o.inicioTimestamp) / (1000 * 60 * 60);
-
-    if (!tempoPorTecnico[o.tecnico]) {
-      tempoPorTecnico[o.tecnico] = { total: 0, qtd: 0 };
-    }
-
-    tempoPorTecnico[o.tecnico].total += horas;
-    tempoPorTecnico[o.tecnico].qtd += 1;
-  });
-
-  const mediaPorTecnico = Object.entries(tempoPorTecnico).map(
-    ([tecnico, v]) => ({
-      tecnico,
-      media: Number((v.total / v.qtd).toFixed(1))
-    })
-  );
-
-  /* 🏆 Ranking produtividade */
-  const ranking = Object.entries(
-    ordens.reduce((acc, o) => {
-      if (o.status === "Encerrado" && o.tecnico) {
-        acc[o.tecnico] = (acc[o.tecnico] || 0) + 1;
+      // sexta
+      if (semana === 5) {
+        horasDisponiveis +=
+      9 * tecnicosAtivos;
       }
-      return acc;
-    }, {})
-  )
-    .map(([tecnico, total]) => ({ tecnico, total }))
-    .sort((a, b) => b.total - a.total);
 
-  /* 📈 Gráfico */
-  const chartData = [
-    { name: "Abertas", value: abertas },
-    { name: "Em andamento", value: andamento },
-    { name: "Encerradas", value: encerradas }
-  ];
+      // seg a qui
+      else if (
+        semana >= 1 &&
+        semana <= 4
+      ) {
+        horasDisponiveis +=
+      10 * tecnicosAtivos;
+      }
+    });
 
-  const COLORS = ["#22c55e", "#eab308", "#ef4444"];
+    const horasImprodutivas =
+    (
+      horasDisponiveis -
+      Number(horasProdutivas)
+    ).toFixed(1);
 
-  return (
-   <div className="min-h-screen bg-slate-800 text-gray-900 p-10">
-      
-      {/* 🟡 HEADER */}
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-4xl font-bold text-yellow-500">
-          {nomeGestor}
-        </h1>
+    const ocupacao =
+    horasDisponiveis > 0
+      ? (
+          Number(horasProdutivas) /
+          horasDisponiveis *
+          100
+        ).toFixed(0)
+      : 0;
+
+    console.log("Horas Produtivas:", horasProdutivas);
+    console.log("Horas Disponiveis:", horasDisponiveis);
+    console.log("Tecnicos Ativos:", tecnicosAtivos);
+
+    /* =========================
+      SLA
+    ========================= */
+
+
+        
+    const totalOS = dados.length;
+
+      /* 🚨 OS paradas */
+      const DIAS_LIMITE = 2;
+      const agora = Date.now();
+
+      const osParadas = dados.filter(o => {
+
+      if ((o.status || "").toLowerCase() === "encerrado")
+        return false;
+
+      if (!o.dataCriacao)
+        return false;
+
+      const dias =
+        (Date.now() -
+          new Date(o.dataCriacao).getTime()) /
+        (1000 * 60 * 60 * 24);
+
+      return dias >= 7;
+    });
+
+      /* 🧠 Tempo médio por técnico */
+      const tempoPorTecnico = {};
+
+      dados.forEach(o => {
+        if (!o.tecnico || !o.inicioTimestamp || !o.fimTimestamp) return;
+
+        const horas = (o.fimTimestamp - o.inicioTimestamp) / (1000 * 60 * 60);
+
+        if (!tempoPorTecnico[o.tecnico]) {
+          tempoPorTecnico[o.tecnico] = { total: 0, qtd: 0 };
+        }
+
+        tempoPorTecnico[o.tecnico].total += horas;
+        tempoPorTecnico[o.tecnico].qtd += 1;
+      });
+
+      const mediaPorTecnico = Object.entries(tempoPorTecnico).map(
+        ([tecnico, v]) => ({
+          tecnico,
+          media: Number((v.total / v.qtd).toFixed(1))
+        })
+      );
+
+      /* 🏆 Ranking produtividade */
+      const ranking = Object.entries(
+        dados.reduce((acc, o) => {
+          if (o.status === "Encerrado" && o.tecnico) {
+            acc[o.tecnico] = (acc[o.tecnico] || 0) + 1;
+          }
+          return acc;
+        }, {})
+      )
+        .map(([tecnico, total]) => ({ tecnico, total }))
+        .sort((a, b) => b.total - a.total);
+
+      /* 📈 Gráfico */
+      const chartData = [
+        { name: "Abertas", value: abertas },
+        { name: "Em andamento", value: andamento },
+        { name: "Encerradas", value: encerradas }
+      ];
+
+      const COLORS = ["#22c55e", "#eab308", "#ef4444"];
+
+      return (
+      <div className="min-h-screen bg-slate-800 text-gray-900 p-10">
+          
+          {/* 🟡 HEADER */}
+          <div className="flex justify-between items-center mb-6">
+            <h1 className="text-4xl font-bold text-yellow-500">
+              {nomeGestor}
+            </h1>
 
         <div className="text-right text-white">
   {mounted && (
@@ -396,8 +472,7 @@ const totalOS = ordens.length;
 </div>
       </div>
 
-
-<div className="bg-white rounded-xl p-4 mb-6 shadow flex gap-4">
+<div className="bg-white rounded-xl p-4 mb-6 shadow flex gap-4 flex-wrap">
 
   <input
     type="date"
@@ -414,6 +489,42 @@ const totalOS = ordens.length;
       setDataFinal(e.target.value)
     }
   />
+
+  <select
+    value={tecnicoFiltro}
+    onChange={(e) =>
+      setTecnicoFiltro(e.target.value)
+    }
+    className="border rounded px-3"
+  >
+    <option value="">
+      Todos os técnicos
+    </option>
+
+    {tecnicos.map(t => (
+      <option key={t} value={t}>
+        {t}
+      </option>
+    ))}
+  </select>
+
+  <select
+    value={clienteFiltro}
+    onChange={(e) =>
+      setClienteFiltro(e.target.value)
+    }
+    className="border rounded px-3"
+  >
+    <option value="">
+      Todos os clientes
+    </option>
+
+    {listaClientes.map(c => (
+      <option key={c} value={c}>
+        {c}
+      </option>
+    ))}
+  </select>
 
 </div>
 
@@ -532,20 +643,20 @@ const totalOS = ordens.length;
 
 <div className="grid grid-cols-3 gap-4 mb-6">
 
-  <KPI
-    titulo="TÉCNICOS ATIVOS"
-    valor={tecnicosAtivos}
-  />
+<KPI
+  titulo="TÉCNICOS CADASTRADOS"
+  valor={tecnicosAtivos}
+/>
 
-  <KPI
-    titulo="TOP TÉCNICO"
-    valor={tecnicoTop?.[0] || "-"}
-  />
+<KPI
+  titulo="TÉCNICOS COM OS"
+  valor={tecnicosComOS}
+/>
 
-  <KPI
-    titulo="SLA MÉDIO"
-    valor={`${slaHoras}h`}
-  />
+<KPI
+  titulo="TOP TÉCNICO"
+  valor={tecnicoTop?.[0] || "-"}
+/>
 
 </div>
 
@@ -612,7 +723,7 @@ const totalOS = ordens.length;
             </tr>
           </thead>
           <tbody>
-            {ordens.map(o => (
+            {dados.map(o => (
               <tr
                 key={o.id}
                 className={`border-b ${
