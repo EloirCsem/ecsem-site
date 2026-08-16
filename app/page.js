@@ -1,10 +1,13 @@
 "use client";
 
+import { useState } from "react"; // 🌟 IMPORTAÇÃO ESSENCIAL: Controla o Pop-up de cinema
 import Image from "next/image";
 import Link from "next/link";
-  
 
 export default function Home() {
+  // 🌟 ESTADO DO POP-UP: Posicionado perfeitamente no topo do componente
+  const [modalVideo, setModalVideo] = useState(false);
+
   return (
     <main className="min-h-screen bg-slate-800 text-white">
 
@@ -26,7 +29,7 @@ export default function Home() {
 
           <div className="flex items-center gap-4">
             <a
-              href="https://wa.me/5551998218593"
+              href="https://wa.me"
               target="_blank"
               className="hidden md:block text-slate-300 hover:text-white transition"
             >
@@ -46,37 +49,27 @@ export default function Home() {
 
       {/* HERO */}
       <section className="pt-44 pb-28 px-6">
-
         <div className="max-w-7xl mx-auto">
-
           <div className="max-w-4xl">
-
             <span className="inline-block px-4 py-2 rounded-full border border-blue-500/30 bg-blue-500/10 text-blue-300 text-sm mb-8">
               Plataforma profissional para assistência técnica, Software de gestão de ordens de serviço e Plataforma para controle de manutenção
             </span>
 
             <h1 className="text-5xl md:text-6xl font-bold leading-tight">
-
               Gestão profissional de
-
               <span className="block text-blue-400">
                 Assistência Técnica
               </span>
-
               e Manutenção
-
             </h1>
 
             <p className="text-slate-300 text-lg md:text-xl leading-relaxed mt-8 max-w-3xl">
-
               Centralize ordens de serviço, equipes técnicas,
               clientes, relatórios e indicadores em um único ambiente,
               com atualização em tempo real.
-
             </p>
 
             <div className="flex flex-wrap gap-4 mt-10">
-
               <Link
                 href="/painel"
                 className="bg-blue-600 hover:bg-blue-700 px-8 py-4 rounded-lg font-semibold transition"
@@ -85,33 +78,24 @@ export default function Home() {
               </Link>
 
               <a
-                href="https://wa.me/5551998218593"
+                href="https://wa.me"
                 target="_blank"
                 className="border border-slate-600 hover:border-slate-400 px-8 py-4 rounded-lg font-semibold transition"
               >
                 Entrar em Contato
               </a>
-
             </div>
-
           </div>
-
         </div>
-
       </section>
-
       {/* DIFERENCIAIS */}
       <section className="px-6 pb-24">
-
         <div className="max-w-7xl mx-auto">
-
           <div className="grid md:grid-cols-4 gap-6">
-
             <div className="bg-slate-700/50 border border-slate-600 rounded-xl p-6">
               <h3 className="font-semibold text-lg mb-3">
                 Aplicativo Offline
               </h3>
-
               <p className="text-slate-300 text-sm leading-relaxed">
                 Técnicos podem continuar operando mesmo sem internet,
                 sincronizando os dados posteriormente.
@@ -122,7 +106,6 @@ export default function Home() {
               <h3 className="font-semibold text-lg mb-3">
                 Relatórios Automáticos
               </h3>
-
               <p className="text-slate-300 text-sm leading-relaxed">
                 Geração automática de PDFs contendo informações,
                 fotos e assinaturas digitais.
@@ -133,7 +116,6 @@ export default function Home() {
               <h3 className="font-semibold text-lg mb-3">
                 Business Intelligence
               </h3>
-
               <p className="text-slate-300 text-sm leading-relaxed">
                 Indicadores operacionais e de desempenho atualizados
                 em tempo real.
@@ -144,30 +126,24 @@ export default function Home() {
               <h3 className="font-semibold text-lg mb-3">
                 Controle Multiempresa
               </h3>
-
               <p className="text-slate-300 text-sm leading-relaxed">
                 Cada gestor visualiza apenas seus clientes,
                 técnicos e ordens de serviço.
               </p>
             </div>
-
           </div>
-
         </div>
-
       </section>
 
-      {/* COMO FUNCIONA */}
-      <section className="bg-slate-900 py-24 px-6">
-
+      {/* 🚀 COMO FUNCIONA COM POP-UP DE VÍDEO PREMIUM INTEGRADO */}
+      <section className="bg-slate-900 py-24 px-6 text-white relative">
         <div className="max-w-6xl mx-auto text-center">
-
+          
           <h2 className="text-4xl font-bold mb-16">
             Fluxo Operacional
           </h2>
 
-          <div className="grid md:grid-cols-4 gap-8">
-
+          <div className="grid md:grid-cols-4 gap-8 mb-16">
             <div>
               <div className="text-4xl font-bold text-blue-400 mb-4">
                 01
@@ -195,13 +171,55 @@ export default function Home() {
               </div>
               <p>Relatórios e indicadores atualizados, todos acessíveis em tempo real</p>
             </div>
-
           </div>
 
+          {/* 🖥️ BANNER GATILHO: Chamada de ação que estimula o cliente a clicar */}
+          <div className="max-w-3xl mx-auto bg-gradient-to-r from-blue-600 to-indigo-700 p-8 rounded-3xl shadow-xl flex flex-col md:flex-row items-center justify-between gap-6 text-left">
+            <div>
+              <h3 className="text-xl font-bold text-white mb-1">Quer ver o ECSEM em ação?</h3>
+              <p className="text-blue-100 text-xs max-w-md">Assista ao vídeo demonstrativo de 2 minutos sobre a abertura de OS e o controle do gestor para designar técnicos em tempo real.</p>
+            </div>
+            <button
+              onClick={() => setModalVideo(true)}
+              className="bg-white text-blue-600 hover:bg-gray-100 transition font-bold px-6 py-3 rounded-xl flex items-center gap-2 whitespace-nowrap text-sm shadow-md"
+            >
+              ▶ Assistir Demonstração
+            </button>
+          </div>
         </div>
 
-      </section>
+        {/* 🍿 POP-UP CINEMA DO VÍDEO DO YOUTUBE (TOTALMENTE CORRIGIDO) */}
+        {modalVideo && (
+          <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 w-full max-w-4xl shadow-2xl relative">
+              
+              <button 
+                onClick={() => setModalVideo(false)}
+                className="absolute -top-12 right-0 bg-white/10 hover:bg-white/20 text-white font-bold px-4 py-2 rounded-xl transition text-xs tracking-wider"
+              >
+                ✕ FECHAR VÍDEO
+              </button>
 
+                            {/* Player do YouTube Responsivo Proporção 16:9 Nativa (AJUSTADO E LIBERADO) */}
+              <div className="relative w-full pb-[56.25%] h-0 rounded-2xl overflow-hidden bg-black shadow-inner border border-slate-800">
+                <iframe
+                  className="absolute top-0 left-0 w-full h-full"
+                  // 🚀 MUDANÇA ESSENCIAL: A palavra "embed/" substitui o "watch?v=" para o Google aceitar a conexão
+                  src="https://www.youtube.com/embed/GCJw9i9rZ0U"
+                  title="Vídeo demonstrativo ECSEM"
+                  frameBorder="0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
+                ></iframe>
+              </div>
+
+
+            </div>
+          </div>
+        )}
+
+
+      </section>
       {/* RECURSOS */}
       <section className="py-24 px-6">
         <div className="max-w-7xl mx-auto">
@@ -235,7 +253,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* 📧 SEÇÃO DE CONTATO PROFISSIONAL (SUBSTITUI O CTA ANTIGO) */}
+      {/* 📧 SEÇÃO DE CONTATO PROFISSIONAL */}
       <section id="contato" className="py-24 px-6 bg-gradient-to-b from-slate-800 to-slate-900 border-t border-slate-700">
         <div className="max-w-5xl mx-auto text-center">
           <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider bg-blue-500/10 text-blue-400 border border-blue-500/20 mb-4">
@@ -296,14 +314,14 @@ export default function Home() {
                     <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.387a12.035 12.035 0 0 1-7.108-7.108c-.145-.44.02-.927.396-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z" />
                   </svg>
                 </div>
-                <h3 className="text-xl font-bold mb-2 text-white">Suporte via WhatsApp</h3>
+                <h3 className="text-xl font-bold mb-2 text-emerald-400">Suporte via WhatsApp</h3>
                 <p className="text-slate-400 text-sm mb-6 leading-relaxed">
                   Fale com um atendente humano instantaneamente para chamados de urgência.
                 </p>
               </div>
 
               <a
-                href="https://wa.me/5551998218593"
+                href="https://wa.me"
                 target="_blank"
                 className="w-full text-center bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 px-4 rounded-xl transition shadow-lg shadow-emerald-600/10"
               >
@@ -321,7 +339,7 @@ export default function Home() {
           <p>© {new Date().getFullYear()} C-SEM Gestão. Todos os direitos reservados.</p>
           <div className="flex gap-6">
             <a href="mailto:contato@ecsem.com.br" className="hover:text-white transition">contato@ecsem.com.br</a>
-            <a href="https://wa.me/5551998218593" target="_blank" className="hover:text-white transition">Suporte</a>
+            <a href="https://wa.me" target="_blank" className="hover:text-white transition">Suporte</a>
           </div>
         </div>
       </footer>

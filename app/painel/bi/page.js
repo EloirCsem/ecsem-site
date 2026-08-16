@@ -405,28 +405,90 @@ const tecnicosComOS = new Set(
       return dias >= 7;
     });
 
-      /* 🧠 Tempo médio por técnico */
+          /* 🧠 Tempo médio por técnico (Blindagem Total contra NaN) */
       const tempoPorTecnico = {};
+      let totalHorasEmpresa = 0;
+      let totalQtdEmpresa = 0;
 
       dados.forEach(o => {
-        if (!o.tecnico || !o.inicioTimestamp || !o.fimTimestamp) return;
+        // Se a OS não tiver técnico cadastrado, pula para não quebrar o gráfico
+        if (!o.tecnico) return;
 
-        const horas = (o.fimTimestamp - o.inicioTimestamp) / (1000 * 60 * 60);
+        let duracaoEmHoras = 0;
 
-        if (!tempoPorTecnico[o.tecnico]) {
-          tempoPorTecnico[o.tecnico] = { total: 0, qtd: 0 };
+        // Plano A: Puxa a duração direta se o app já tiver calculado em minutos
+        if (o.duracaoMinutos && !isNaN(Number(o.duracaoMinutos)) && Number(o.duracaoMinutos) > 0) {
+          duracaoEmHoras = Number(o.duracaoMinutos) / 60;
+        } 
+        // Plano B: Se não tiver a duração em minutos, tenta calcular pelas strings "HH:MM" de texto
+        else if (o.inicio && o.fim && o.inicio.includes(":") && o.fim.includes(":")) {
+          const partsIni = o.inicio.split(":");
+          const partsFim = o.fim.split(":");
+
+          if (partsIni.length === 2 && partsFim.length === 2) {
+            const hIni = parseInt(partsIni[0], 10);
+            const mIni = parseInt(partsIni[1], 10);
+            const hFim = parseInt(partsFim[0], 10);
+            const mFim = parseInt(partsFim[1], 10);
+
+            // Garante que todas as conversões para número deram certo antes de somar
+            if (!isNaN(hIni) && !isNaN(mIni) && !isNaN(hFim) && !isNaN(mFim)) {
+              const minutosInicio = (hIni * 60) + mIni;
+              const minutosFim = (hFim * 60) + mFim;
+              const diferencaMinutos = minutosFim - minutosInicio;
+              
+              if (diferencaMinutos > 0) {
+                duracaoEmHoras = diferencaMinutos / 60;
+              }
+            }
+          }
         }
 
-        tempoPorTecnico[o.tecnico].total += horas;
-        tempoPorTecnico[o.tecnico].qtd += 1;
+        // 🛡️ TRAVA ANT-NaN: Se por qualquer motivo o cálculo falhou ou deu zero, descarta esta OS
+        if (duracaoEmHoras <= 0 || isNaN(duracaoEmHoras)) return;
+
+        // Inicializa o acumulador do técnico de forma limpa com números puros
+        if (!tempoPorTecnico[o.tecnico]) {
+          tempoPorTecnico[o.tecnico] = { totalHoras: 0, qtdOs: 0, media: 0 };
+        }
+
+        // Acumula os valores com segurança
+        tempoPorTecnico[o.tecnico].totalHoras += duracaoEmHoras;
+        tempoPorTecnico[o.tecnico].qtdOs += 1;
+
+        totalHorasEmpresa += duracaoEmHoras;
+        totalQtdEmpresa += 1;
       });
 
+      // 🔥 CÁLCULO DA MÉDIA REAL POR TÉCNICO
+      Object.keys(tempoPorTecnico).forEach(tecnicoNome => {
+        const t = tempoPorTecnico[tecnicoNome];
+        if (t.qtdOs > 0 && t.totalHoras > 0) {
+          t.media = Number((t.totalHoras / t.qtdOs).toFixed(1));
+        } else {
+          t.media = 0;
+        }
+      })
+
+      // 🏆 CÁLCULO DO KPI GERAL DA EMPRESA
+      const kpiTempoMedioGeral = totalQtdEmpresa > 0 && totalHorasEmpresa > 0
+        ? Number((totalHorasEmpresa / totalQtdEmpresa).toFixed(1)) 
+        : 0;
+
+      // 🚀 CONVERSÃO PARA ARRAY DO GRÁFICO (CORRIGIDO E SEGURO)
       const mediaPorTecnico = Object.entries(tempoPorTecnico).map(
-        ([tecnico, v]) => ({
-          tecnico,
-          media: Number((v.total / v.qtd).toFixed(1))
-        })
+        ([tecnico, v]) => {
+          // Garante que só faça a divisão se houver horas e ordens válidas acumuladas
+          const mediaCalculada = v.qtdOs > 0 ? (v.totalHoras / v.qtdOs) : 0;
+          
+          return {
+            tecnico,
+            // Arredonda para 1 casa decimal sem risco de gerar NaN
+            media: Number(mediaCalculada.toFixed(1))
+          };
+        }
       );
+
 
       /* 🏆 Ranking produtividade */
       const ranking = Object.entries(
