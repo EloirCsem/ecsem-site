@@ -84,6 +84,9 @@ export default function Dashboard() {
   const [filtroTecnico, setFiltroTecnico] = useState("Todos");
   const [filtroTipoAtividade, setFiltroTipoAtividade] = useState("Todas");
   const [dataInicioSemana, setDataInicioSemana] = useState(new Date()); // Controla qual semana está sendo exibida
+    // 🌟 NOVO: Controla qual bolinha da linha do tempo está aberta via clique
+  const [horarioTimelineAtivo, setHorarioTimelineAtivo] = useState(null);
+
 
   
 
@@ -128,31 +131,34 @@ export default function Dashboard() {
   };
 
   // 📆 🌟 REGRA DE SEGURANÇA: Busca os apontamentos de campo para a Aba Agenda fora do useEffect
+    // 📆 Busca os apontamentos de campo (Deslocamentos, Auditorias e Check-Ins)
   const fetchApontamentos = async (userData) => {
     if (!userData) return;
     try {
       let q;
       if (userData.isAdmin) {
-        // Admins visualizam tudo
         q = query(collection(db, "deslocamentos"), orderBy("dataCriacao", "desc"));
       } else if (userData.isGestor) {
-        // 🔒 SEGURANÇA: Gestor visualiza unicamente o que está na sua carteira
+        // Trava de Carteira: O gestor só baixa os apontamentos que pertencem ao ID dele
         q = query(
           collection(db, "deslocamentos"), 
           where("gestorId", "==", userData.uid),
           orderBy("dataCriacao", "desc")
         );
       } else {
-        // Clientes e técnicos não carregam esse bloco
         return;
       }
 
       const snapshot = await getDocs(q);
+      
+      // 🚀 CORREÇÃO CIRÚRGICA: O "...doc.data()" garante que a latitude, longitude e TODAS as propriedades do banco entrem na lista
       const lista = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       }));
+
       setApontamentos(lista);
+      console.log("📍 APONTAMENTOS SINCRONIZADOS COM GPS COMPLETO:", lista);
     } catch (error) {
       console.error("Erro ao buscar apontamentos:", error);
     }
@@ -664,36 +670,48 @@ const numeroOsStr = await runTransaction(db, async (transaction) => {
     return item.data?.trim() === diaSelecionado?.trim();
   });
 
-  // 👨‍🔧 PROVEDOR DE LISTA DE TÉCNICOS: Garante que todos os técnicos do Gestor apareçam na lista,
-  // mesmo que não tenham feito nenhum apontamento no dia (A régua aparece vazia esperando dados)
+     // 👨‍🔧 PROVEDOR DE LISTA DE TÉCNICOS: Atualizado para obedecer os novos filtros da Timeline
   const linhaTempoAgrupadaPorTecnico = (() => {
     const agrupamento = {};
 
-    // 1º Passo: Alimenta a lista injetando todos os técnicos oficiais cadastrados sob a tutela do gestor
-    usuarios.forEach((tecnicoDoc) => {
-      agrupamento[tecnicoDoc.uid] = {
-        nome: tecnicoDoc.nome || tecnicoDoc.email || "Técnico de Campo",
-        eventos: []
-      };
-    });
+    // 1º Passo: Alimenta a lista injetando os técnicos oficiais do banco
+    if (Array.isArray(usuarios)) {
+      usuarios.forEach((tecnicoDoc) => {
+        const idRealDoTecnico = tecnicoDoc.uid || tecnicoDoc.usuarioId;
+        if (idRealDoTecnico) {
+          agrupamento[idRealDoTecnico] = {
+            nome: tecnicoDoc.nome || tecnicoDoc.email || "Técnico de Campo",
+            eventos: []
+          };
+        }
+      });
+    }
 
-    // 2º Passo: Varre as auditorias de campo de hoje vindas do Firebase e distribui nas réguas corretas
-    apontamentosDoDiaParaTimeline.forEach((item) => {
-      const idTecnico = item.tecnicoId || "desconhecido";
-      
-      // Se por algum motivo o técnico não estava pré-cadastrado na lista de usuários, cria um card dinâmico para ele
-      if (!agrupamento[idTecnico]) {
-        agrupamento[idTecnico] = {
-          nome: item.tecnicoNome || "Técnico Externo",
-          eventos: []
-        };
-      }
-      agrupamento[idTecnico].eventos.push(item);
-    });
+    // 2º Passo: Varre as auditorias do Firebase e distribui APENAS se passarem nos filtros escolhidos
+    if (Array.isArray(apontamentosDoDiaParaTimeline)) {
+      apontamentosDoDiaParaTimeline.forEach((item) => {
+        const idTecnico = item.tecnicoId || "desconhecido";
+        
+        // 🛡️ FILTRO A: Se o gestor escolheu um técnico específico, ignora todos os outros
+        if (filtroTecnico !== "Todos" && idTecnico !== filtroTecnico) return;
+
+        // 🛡️ FILTRO B: Se escolheu um tipo específico de atividade, ignora os tipos diferentes
+        if (filtroTipoAtividade !== "Todas" && item.tipoAtividade !== filtroTipoAtividade) return;
+
+        // Se passar pelos filtros, adiciona na gaveta certa
+        if (!agrupamento[idTecnico]) {
+          agrupamento[idTecnico] = {
+            nome: item.tecnicoNome && item.tecnicoNome.trim() !== "" ? item.tecnicoNome : "Técnico de Campo",
+            eventos: []
+          };
+        }
+        
+        agrupamento[idTecnico].eventos.push(item);
+      });
+    }
 
     return agrupamento;
   })();
-
 
 // 🕒 Transforma uma string "HH:MM" em minutos totais desde o início do dia
 function converterHoraParaMinutos(horaString) {
@@ -749,6 +767,20 @@ function calcularPorcentagemLinhaTempo(horaString) {
     const urlLegitima = partesUrl.join("");
     
     window.open(urlLegitima, "_blank", "noopener,noreferrer");
+  };
+
+    // 🕒 Converte "DD/MM/AAAA" (Seu Estado) para "AAAA-MM-DD" (Exigido pelo Calendário Picker)
+  const converterDataParaInput = (dataBr) => {
+    if (!dataBr || !dataBr.includes("/")) return "";
+    const [dia, mes, ano] = dataBr.split("/");
+    return `${ano}-${mes.padStart(2, '0')}-${dia.padStart(2, '0')}`;
+  };
+
+  // 🕒 Converte "AAAA-MM-DD" (Do Calendário Picker) de volta para "DD/MM/AAAA" (Salvo no Firebase)
+  const converterInputParaData = (dataUs) => {
+    if (!dataUs || !dataUs.includes("-")) return "";
+    const [ano, mes, dia] = dataUs.split("-");
+    return `${dia}/${mes}/${ano}`;
   };
 
 
@@ -1239,22 +1271,63 @@ function calcularPorcentagemLinhaTempo(horaString) {
         </div>
       )}
 
-            {/* 📊 Aba Linha do Tempo: Monitoramento Gráfico Horizontal 24h (Padrão de Logística Avançada) */}
-      {abaAtiva === "timeline" && (usuario?.isGestor || usuario?.isAdmin) && (
-        <div className="w-full max-w-6xl bg-white p-6 rounded-lg shadow mb-6">
+            {/* 📊 ABA LINHA DO TEMPO (AUDITORIA DIGITAL) */}
+      {abaAtiva === "timeline" && (
+        <div className="w-full bg-white p-6 rounded-2xl border border-gray-200 shadow-sm mb-6">
           <div className="border-b pb-4 mb-6">
-            <h2 className="text-xl font-bold text-gray-800">Linha do Tempo Diária da Equipe</h2>
-            <p className="text-sm text-gray-500">
-              Régua cronológica com o histórico de atendimentos e atividades para o dia <span className="font-bold text-blue-600">{diaSelecionado}</span>.
-            </p>
+            <h2 className="text-xl font-bold text-gray-800">Linha do Tempo e Auditoria Digital</h2>
+            <p className="text-sm text-gray-500">Monitore as atividades cronológicas e o rastro físico de GPS da equipe de campo nas últimas 24 horas.</p>
           </div>
 
-          {/* Legenda Dinâmica de Cores */}
-          <div className="flex flex-wrap gap-4 text-xs font-semibold text-gray-600 mb-6 bg-gray-50 p-3 rounded-lg border">
-            <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-sky-400"></span> 📍 Check-In</span>
-            <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-rose-500"></span> 🏁 Check-Out</span>
-            <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-blue-700"></span> 🚗 Deslocamento</span>
-            <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-purple-600"></span> ⚙️ Outra Atividade</span>
+          {/* 🌟 BARRA DE FILTROS INTEGRADA E FUNCIONAL NA TIMELINE */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8 bg-gray-50 p-4 rounded-xl border border-gray-200/60">
+            {/* Seletor de Técnico */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Filtrar por Técnico</label>
+              <select
+                value={filtroTecnico}
+                onChange={(e) => setFiltroTecnico(e.target.value)}
+                className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-500 transition cursor-pointer"
+              >
+                <option value="Todos">👥 Todos os Técnicos</option>
+                {usuarios.map((tec) => (
+                  <option key={tec.uid || tec.usuarioId} value={tec.uid || tec.usuarioId}>
+                    👨‍🔧 {tec.nome || tec.email}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Seletor de Tipo de Atividade */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Tipo de Atividade</label>
+              <select
+                value={filtroTipoAtividade}
+                onChange={(e) => setFiltroTipoAtividade(e.target.value)}
+                className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-500 transition cursor-pointer"
+              >
+                <option value="Todas">🔍 Todas as Atividades</option>
+                <option value="check_in">📥 Check-In em Clientes</option>
+                <option value="check_out">📤 Check-Out / Encerramentos</option>
+                <option value="deslocamento">🚗 Deslocamento / Trânsito</option>
+                <option value="outras">⚙️ Outras Atividades (Oficina/Interno)</option>
+              </select>
+            </div>
+
+                        {/* 📆 Calendário Picker Nativo e Funcional na Timeline */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Data</label>
+              <input
+                type="date" // 🌟 Transforma em um Calendário Picker completo com ícone nativo
+                value={converterDataParaInput(diaSelecionado)}
+                onChange={(e) => {
+                  const dataFormatadaBr = converterInputParaData(e.target.value);
+                  if (dataFormatadaBr) setDiaSelecionado(dataFormatadaBr);
+                }}
+                className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm text-center focus:outline-none focus:border-blue-500 transition font-semibold text-gray-700 cursor-pointer"
+              />
+            </div>
+
           </div>
 
           {Object.keys(linhaTempoAgrupadaPorTecnico).length === 0 ? (
@@ -1262,8 +1335,13 @@ function calcularPorcentagemLinhaTempo(horaString) {
               Nenhuma atividade de campo ou registro de auditoria detectado para este dia.
             </p>
           ) : (
-            <div className="flex flex-col gap-8">
-              {Object.entries(linhaTempoAgrupadaPorTecnico).map(([tecnicoId, dados]) => (
+            
+          <div className="flex flex-col gap-8">
+            {Object.entries(linhaTempoAgrupadaPorTecnico).map(([tecnicoId, dados]) => {
+              // 🚀 TRAVA SATELLITE: Se filtrou um técnico específico, esconde todos os outros da tela na mesma hora!
+              if (filtroTecnico !== "Todos" && tecnicoId !== filtroTecnico) return null;
+
+              return (
                 <div key={tecnicoId} className="bg-gray-50 p-4 rounded-xl border border-gray-100 shadow-sm">
                   {/* Nome do Técnico e ID */}
                   <div className="flex justify-between items-center mb-4">
@@ -1273,6 +1351,7 @@ function calcularPorcentagemLinhaTempo(horaString) {
                     <span className="text-xs text-gray-400">UID: {tecnicoId}</span>
                   </div>
 
+
                   {/* CONTAINER DA RÉGUA GRÁFICA HORIZONTAL */}
                   <div className="relative w-full h-12 bg-gray-200 rounded-lg border border-gray-300 shadow-inner flex items-center">
                     
@@ -1281,44 +1360,162 @@ function calcularPorcentagemLinhaTempo(horaString) {
                     <div className="absolute left-[50%] top-0 bottom-0 w-px bg-gray-300/60 border-dashed"></div>
                     <div className="absolute left-[75%] top-0 bottom-0 w-px bg-gray-300/60 border-dashed"></div>
 
-                    {/* 🌟 PLOTAGEM DINÂMICA DOS PONTOS DO HISTÓRICO COM FUNÇÃO INDEPENDENTE */}
-                    {dados.eventos.map((evento) => {
-                      const posEsquerda = calcularPorcentagemLinhaTempo(evento.horaInicio);
+                    {/* 🌟 PLOTAGEM DEFINITIVA: FUSÃO EM PIZZA COM ABERTURA POR CLIQUE FIXO (BLINDADO) */}
+                    {(() => {
+                      const gruposDeTempo = {};
                       
-                      // Seleção de Cores em Tailwind com base no tipo exato de auditoria
-                      let corBolinha = "bg-purple-600"; // Padrão "outras"
-                      if (evento.tipoAtividade === "deslocamento") corBolinha = "bg-blue-700";
-                      else if (evento.tipoAtividade === "check_in") corBolinha = "bg-sky-400";
-                      else if (evento.tipoAtividade === "check_out") corBolinha = "bg-rose-500";
+                      dados.eventos
+                        .sort((a, b) => (a.horaInicio || "").localeCompare(b.horaInicio || ""))
+                        .forEach((evento) => {
+                          const horarioKey = evento.horaInicio || "00:00";
+                          if (!gruposDeTempo[horarioKey]) {
+                            gruposDeTempo[horarioKey] = [];
+                          }
+                          gruposDeTempo[horarioKey].push(evento);
+                        });
 
-                      return (
-                        <div
-                          key={evento.id}
-                          className="absolute group z-10 cursor-pointer"
-                          style={{ left: posEsquerda + "%", transform: "translateX(-50%)" }}
-                          // 🚀 CHAMA A FUNÇÃO BLINDADA DO TOPO ENVIANDO APENAS OS PARÂMETROS NÚMERICOS PUROS
-                          onClick={() => abrirLocalizacaoNoGoogleMaps(evento.latitude, evento.longitude)}
-                        >
-                          {/* Bolinha Pulsante Indicativa */}
-                          <div className={"w-4 h-4 rounded-full border-2 border-white shadow transition-all duration-200 group-hover:scale-150 " + corBolinha}></div>
+                      return Object.entries(gruposDeTempo).map(([horario, listaEventos]) => {
+                        const posEsquerda = calcularPorcentagemLinhaTempo(horario);
+                        const possuiMultiplos = listaEventos.length > 1;
+                        
+                        // 🧠 Verifica se este balão específico foi aberto pelo clique do gestor
+                        const estaAberto = horarioTimelineAtivo === `${tecnicoId}_${horario}`;
 
-                          {/* 🎈 Balão Informativo Flutuante (Tooltip Inteligente ao Passar o Mouse) */}
-                          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs rounded p-2 shadow-xl opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap min-w-[160px] border border-gray-700">
-                            <p className="font-bold text-blue-400">{evento.horaInicio}</p>
-                            <p className="font-semibold">{evento.descricao || "Atividade de Campo"}</p>
-                            {evento.numeroOs && <p className="text-gray-400 text-[10px]">Ordem: #{evento.numeroOs}</p>}
-                            {evento.latitude && evento.longitude && (
-                              <p className="text-blue-300 text-[10px] mt-1 text-center font-bold">🗺️ Clique para abrir o Mapa</p>
+                        const obterCorHex = (tipo) => {
+                          if (tipo === "deslocamento") return "#1d4ed8";
+                          if (tipo === "check_in") return "#38bdf8";
+                          if (tipo === "check_out") return "#f43f5e";
+                          return "#9333ea";
+                        };
+
+                        let estiloBolinha = {};
+                        let classesBolinha = "w-4 h-4 rounded-full border-2 border-white shadow-md transition-all duration-200 hover:scale-125 ";
+
+                        if (possuiMultiplos) {
+                          const totalFatias = listaEventos.length;
+                          const grausPorFatia = 360 / totalFatias;
+                          let gradienteString = "conic-gradient(";
+                          
+                          listaEventos.forEach((ev, i) => {
+                            const cor = obterCorHex(ev.tipoAtividade);
+                            const inicioGrau = i * grausPorFatia;
+                            const fimGrau = (i + 1) * grausPorFatia;
+                            gradienteString += `${cor} ${inicioGrau}deg ${fimGrau}deg`;
+                            if (i < totalFatias - 1) gradienteString += ", ";
+                          });
+                          gradienteString += ")";
+
+                          estiloBolinha = { background: gradienteString };
+                        } else {
+                          const unico = listaEventos[0] || {};
+                          let corUnica = "bg-purple-600";
+                          if (unico.tipoAtividade === "deslocamento") corUnica = "bg-blue-700";
+                          else if (unico.tipoAtividade === "check_in") corUnica = "bg-sky-400";
+                          else if (unico.tipoAtividade === "check_out") corUnica = "bg-rose-500";
+                          classesBolinha += corUnica;
+                        }
+
+                        return (
+                          <div
+                            key={horario}
+                            className="absolute z-20"
+                            style={{ left: posEsquerda + "%", transform: "translateX(-50%)" }}
+                          >
+                            {/* 🚀 GATILHO DE CLIQUE: Abre ou fecha o balão de forma fixa */}
+                            <div 
+                              className={classesBolinha} 
+                              style={estiloBolinha}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                // Se já estiver aberto, fecha. Se estiver fechado, abre o ID composto exclusivo deste técnico/horário
+                                const chaveAtiva = `${tecnicoId}_${horario}`;
+                                setHorarioTimelineAtivo(horarioTimelineAtivo === chaveAtiva ? null : chaveAtiva);
+                              }}
+                            ></div>
+
+                            {/* 🎈 BALÃO INFORMATIVO FIXO (Aparece e fica estático apenas com o clique ativo) */}
+                            {estaAberto && (
+                              <div 
+                                className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs rounded-2xl p-4 shadow-2xl min-w-[260px] border border-slate-700 flex flex-col gap-3 mb-2 z-50"
+                                onClick={(e) => e.stopPropagation()} // Evita fechar ao clicar dentro do balão
+                              >
+                                <div className="flex justify-between items-center border-b border-slate-700 pb-2">
+                                  <span className="font-black text-blue-400 text-sm">🕒 {horario}</span>
+                                  
+                                  {/* Botão de Fechar Rápido integrado ao cabeçalho do balão */}
+                                  <button 
+                                    onClick={() => setHorarioTimelineAtivo(null)}
+                                    className="text-slate-400 hover:text-white transition font-bold px-1.5 text-[11px]"
+                                  >
+                                    ✕ FECHAR
+                                  </button>
+                                </div>
+
+                                {/* Lista de Atividades */}
+                                <div className="flex flex-col gap-2.5 max-h-48 overflow-y-auto pr-1">
+                                                               {listaEventos.map((ev, idx) => {
+                                  // 🚀 CONVERSÃO FORÇADA ANT-ERRO: Converte o dado bruto do Firebase para Número puro do JavaScript
+                                  const latNum = Number(ev.latitude);
+                                  const lonNum = Number(ev.longitude);
+
+                                  // Checa se os números são legítimos e diferentes de zero
+                                  const temLat = !isNaN(latNum) && latNum !== 0;
+                                  const temLon = !isNaN(lonNum) && lonNum !== 0;
+
+                                  return (
+                                    <div 
+                                      key={ev.id || idx} 
+                                      className="flex flex-col gap-1 bg-slate-800/60 p-2.5 rounded-xl border border-slate-700/30 text-left cursor-default"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <div className="flex items-center gap-1.5 font-bold text-gray-200 text-xs">
+                                        <span 
+                                          className="w-2 h-2 rounded-full inline-block shrink-0" 
+                                          style={{ backgroundColor: obterCorHex(ev.tipoAtividade) }}
+                                        ></span>
+                                        {ev.descricao || "Atividade Operacional"}
+                                      </div>
+                                      
+                                      {ev.numeroOs && (
+                                        <span className="text-slate-400 text-[10px] pl-3.5">Ordem de Serviço: #{ev.numeroOs}</span>
+                                      )}
+                                      
+                                      {/* 🌟 IMPRIME O BOTÃO DO MAPS DE FORMA BLINDADA */}
+                                      {temLat && temLon ? (
+                                        <button
+                                          onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            abrirLocalizacaoNoGoogleMaps(latNum, lonNum);
+                                          }}
+                                          className="text-left text-blue-400 hover:text-blue-300 text-[10px] font-extrabold mt-1 underline tracking-wide flex items-center gap-1 pl-3.5"
+                                        >
+                                          🗺️ Visualizar Rota no Maps
+                                        </button>
+                                      ) : (
+                                        <span className="text-red-400 text-[9px] font-bold pl-3.5 block">
+                                          Bug GPS: lat={String(ev.latitude || ev.lat || "nulo")} | lon={String(ev.longitude || ev.lon || "nulo")}
+                                        </span>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+
+
+
+                                </div>
+                              </div>
                             )}
                           </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      });
+                    })()}
+
 
 
                   </div>
 
-                  {/* Régua Numérica de Horas (Marcadores de Rodapé da Linha) */}
+                                    {/* Régua Numérica de Horas (Marcadores de Rodapé da Linha) */}
                   <div className="relative w-full flex justify-between text-[11px] font-bold text-gray-400 mt-2 px-1">
                     <span>00:00</span>
                     <span>06:00</span>
@@ -1327,12 +1524,13 @@ function calcularPorcentagemLinhaTempo(horaString) {
                     <span>23:59</span>
                   </div>
 
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+                </div> // 🌟 Fecha o card do técnico
+              );
+            })}
+          </div>
+        )}
+      </div>
+    )}
 
 
 
