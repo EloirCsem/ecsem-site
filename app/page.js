@@ -5,12 +5,13 @@ import Image from "next/image";
 import Link from "next/link";
 
 export default function Home() {
-    
   const [faqAberto, setFaqAberto] = useState(null);
-const [abaAtiva, setAbaAtiva] = useState(0);
-const [isPausado, setIsPausado] = useState(false);
+  const [abaAtiva, setAbaAtiva] = useState(0);
+  const [isPausado, setIsPausado] = useState(false);
+  const [currentYear, setCurrentYear] = useState("");
+
   const whatsappUrl =
-    "https://wa.me/5551994726691?text=Ol%C3%A1!%20Gostaria%20de%20mais%20informa%C3%A7%C3%B5es%20sobre%20o%20C-SEM%20Gesta%C3%B3.";
+    "https://wa.me/5551994726691?text=Ol%C3%A1!%20Gostaria%20de%20mais%20informa%C3%A7%C3%B5es%20sobre%20o%20C-SEM%20";
 
   const modulos = [
     {
@@ -57,7 +58,10 @@ const [isPausado, setIsPausado] = useState(false);
     },
   ];
 
-  // Alterna a cada 5s sem pulo de tela (e pausa se o usuário passar o mouse por cima)
+  useEffect(() => {
+    setCurrentYear(new Date().getFullYear());
+  }, []);
+
   useEffect(() => {
     if (isPausado) return;
 
@@ -100,12 +104,17 @@ const [isPausado, setIsPausado] = useState(false);
       className="min-h-screen text-zinc-800 antialiased font-sans selection:bg-[#b8860b] selection:text-white bg-fixed bg-cover bg-center relative"
       style={{ backgroundImage: "url('/fundo-site.jpg')" }}
     >
-      {/* Máscara global para fundo fixo */}
-      <div className="absolute inset-0 bg-gradient-to-b from-[#d8dcdd]/80 via-[#1e2022]/90 to-[#121314] pointer-events-none z-0" />
+      {/* 
+        MÁSCARA DE DEGRADÊ SUAVE:
+        - Começa bem suave no topo (from-black/30) deixando o fundo claro.
+        - Escurece devagar pelo meio (via-[#1e2022]/65).
+        - Termina em um escuro moderado no final (to-[#121314]/90).
+      */}
+      <div className="absolute inset-0 bg-gradient-to-b from-transparente/10 via-[#1e2022]/40 to-[#121314]/60 pointer-events-none z-0" />
 
-      <div className="relative z-10">
+      <div className="relative z-10 flex flex-col min-h-screen">
         {/* NAVBAR */}
-        <header className="fixed top-0 left-0 w-full z-50 border-b border-zinc-300/30 bg-[#1e2022]/80 backdrop-blur-md shadow-lg text-white">
+        <header className="fixed top-0 left-0 w-full z-50 border-b border-zinc-700/40 bg-[#1e2022]/70 backdrop-blur-md shadow-lg text-white">
           <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
             <Link href="/" className="flex items-center gap-3 group">
               <Image
@@ -113,25 +122,38 @@ const [isPausado, setIsPausado] = useState(false);
                 alt="C-SEM Gestão"
                 width={42}
                 height={42}
-                style={{ width: "auto", height: "auto" }}
-                className="drop-shadow-sm transition transform group-hover:scale-105"
+                priority
+                className="w-auto h-auto drop-shadow transition-transform duration-300 group-hover:scale-105"
               />
-              <span className="font-extrabold text-2xl tracking-tight text-white">
+              <span className="font-extrabold text-2xl tracking-tight text-white drop-shadow">
                 C-SEM <span className="text-[#c59b27]">Gestão</span>
               </span>
             </Link>
 
-            <nav className="hidden lg:flex items-center gap-8 font-semibold text-xs tracking-wider text-zinc-300 uppercase">
-              <a href="#" className="hover:text-[#c59b27] transition border-b-2 border-[#c59b27] pb-1">Início</a>
-              <a href="#modulos" className="hover:text-[#c59b27] transition">Serviços</a>
-              <a href="#integracao" className="hover:text-[#c59b27] transition">Funcionalidades</a>
-              <a href="#faq" className="hover:text-[#c59b27] transition">Dúvidas</a>
-              <a href="#contato" className="hover:text-[#c59b27] transition">Contato</a>
+            <nav className="hidden lg:flex items-center gap-8 font-semibold text-xs tracking-wider text-zinc-200 uppercase">
+              <a href="#" className="hover:text-[#c59b27] transition-colors border-b-2 border-[#c59b27] pb-1">
+                Início
+              </a>
+              <a href="#modulos" className="hover:text-[#c59b27] transition-colors">
+                Serviços
+              </a>
+              <a href="#integracao" className="hover:text-[#c59b27] transition-colors">
+                Funcionalidades
+              </a>
+              <a href="#demonstracao-video" className="hover:text-[#c59b27] transition-colors">
+                Vídeo
+              </a>
+              <a href="#faq" className="hover:text-[#c59b27] transition-colors">
+                Dúvidas
+              </a>
+              <a href="#contato" className="hover:text-[#c59b27] transition-colors">
+                Contato
+              </a>
             </nav>
 
             <div className="flex items-center gap-4">
               <Link
-                href="/painel"
+                href="/login"
                 className="bg-gradient-to-r from-[#c59b27] to-[#9e7410] hover:from-[#b8860b] hover:to-[#8a630a] text-white font-bold px-6 py-2.5 rounded-md shadow-md uppercase text-xs tracking-wider transition-all duration-200 active:scale-95"
               >
                 Entrar
@@ -144,11 +166,11 @@ const [isPausado, setIsPausado] = useState(false);
         <section className="pt-36 pb-20 px-6 min-h-[620px] flex items-center">
           <div className="max-w-7xl mx-auto grid lg:grid-cols-12 gap-12 items-center w-full">
             <div className="lg:col-span-6 space-y-6 text-left">
-              <h1 className="text-4xl sm:text-5xl font-black text-[#e5b839] leading-[1.1] tracking-tight uppercase drop-shadow-md">
+              <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-[#e5b839] leading-[1.15] tracking-tight uppercase drop-shadow-lg">
                 PLATAFORMA INTELIGENTE PARA GESTÃO DE MANUTENÇÃO E SERVIÇOS
               </h1>
 
-              <p className="text-zinc-200 text-base sm:text-lg font-medium leading-relaxed max-w-lg">
+              <p className="text-white text-base sm:text-lg font-medium leading-relaxed max-w-lg drop-shadow">
                 Sua operação eficiente: técnicos conectados, clientes informados e gestão baseada em dados reais.
               </p>
 
@@ -157,7 +179,7 @@ const [isPausado, setIsPausado] = useState(false);
                   href={whatsappUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-block bg-gradient-to-r from-[#c59b27] to-[#9e7410] hover:from-[#b8860b] hover:to-[#8a630a] text-white font-bold px-8 py-4 rounded-md shadow-lg uppercase text-sm tracking-wider transition-all hover:scale-105 active:scale-95"
+                  className="inline-block bg-gradient-to-r from-[#c59b27] to-[#9e7410] hover:from-[#b8860b] hover:to-[#8a630a] text-white font-bold px-8 py-4 rounded-md shadow-lg uppercase text-sm tracking-wider transition-all duration-300 hover:scale-105 active:scale-95"
                 >
                   SOLICITAR DEMONSTRAÇÃO
                 </a>
@@ -173,8 +195,7 @@ const [isPausado, setIsPausado] = useState(false);
                     width={700}
                     height={450}
                     sizes="(max-width: 768px) 100vw, 700px"
-                    style={{ width: "100%", height: "auto" }}
-                    className="rounded-lg object-contain"
+                    className="w-full h-auto rounded-lg object-contain"
                     priority
                   />
                 </div>
@@ -183,8 +204,8 @@ const [isPausado, setIsPausado] = useState(false);
           </div>
         </section>
 
-        {/* ECOSSISTEMA */}
-        <section id="modulos" className="py-20 px-6 bg-[#1a1b1d]/80 backdrop-blur-md border-y border-zinc-800 text-white">
+        {/* ECOSSISTEMA / MÓDULOS */}
+        <section id="modulos" className="py-20 px-6 bg-[#1a1b1d]/60 backdrop-blur-md border-y border-zinc-700/50 text-white">
           <div className="max-w-7xl mx-auto">
             <div className="text-center mb-12">
               <span className="text-[#c59b27] font-bold text-xs uppercase tracking-widest block mb-2">
@@ -195,8 +216,9 @@ const [isPausado, setIsPausado] = useState(false);
               </h2>
             </div>
 
+            {/* Trava de altura ajustada para evitar oscilações */}
             <div
-              className="flex flex-col lg:flex-row gap-4 h-auto lg:h-[530px]"
+              className="flex flex-col lg:flex-row gap-4 h-auto lg:h-[560px] items-stretch"
               onMouseEnter={() => setIsPausado(true)}
               onMouseLeave={() => setIsPausado(false)}
             >
@@ -207,22 +229,22 @@ const [isPausado, setIsPausado] = useState(false);
                   <div
                     key={modulo.id}
                     onClick={() => setAbaAtiva(modulo.id)}
-                    className={`cursor-pointer rounded-xl transition-all duration-500 ease-in-out border overflow-hidden flex flex-col justify-between h-full ${
+                    className={`cursor-pointer rounded-xl transition-all duration-500 ease-in-out border overflow-hidden flex flex-col justify-between p-6 h-full backdrop-blur-md ${
                       isAtivo
-                        ? "lg:flex-[3] bg-[#282a2d] border-[#c59b27] p-6 shadow-2xl shadow-black/60"
-                        : "lg:flex-[1] bg-[#1e2022]/70 hover:bg-[#25272a] border-zinc-700/60 p-6 opacity-80"
+                        ? "lg:flex-[3] bg-[#282a2d]/90 border-[#c59b27] shadow-2xl shadow-black/60"
+                        : "lg:flex-[1] bg-[#1e2022]/50 hover:bg-[#25272a]/70 border-zinc-700/50 opacity-85"
                     }`}
                   >
-                    <div className="flex items-center justify-between border-b border-zinc-700/60 pb-3 mb-2 shrink-0">
+                    <div className="flex items-center justify-between border-b border-zinc-700/60 pb-3 mb-2 shrink-0 h-10">
                       <span className="px-3 py-1 rounded text-xs font-bold uppercase bg-[#c59b27]/20 text-[#e5b839] border border-[#c59b27]/40">
                         {modulo.tag}
                       </span>
-                      <span className="text-zinc-500 font-mono text-sm">0{modulo.id + 1}</span>
+                      <span className="text-zinc-400 font-mono text-sm">0{modulo.id + 1}</span>
                     </div>
 
                     {isAtivo ? (
-                      <div className="grid md:grid-cols-12 gap-6 items-center flex-1 overflow-hidden py-2">
-                        <div className="md:col-span-5 space-y-3">
+                      <div className="grid md:grid-cols-12 gap-6 items-center flex-1 overflow-hidden py-2 h-[calc(100%-2.5rem)]">
+                        <div className="md:col-span-5 space-y-3 flex flex-col justify-center">
                           <h3 className="text-2xl font-bold text-white leading-tight">
                             {modulo.titulo}
                           </h3>
@@ -240,36 +262,36 @@ const [isPausado, setIsPausado] = useState(false);
                           </div>
                         </div>
 
-                        <div className="md:col-span-7 h-[260px] md:h-[340px] relative rounded-lg overflow-hidden border border-zinc-700 bg-black/60 p-2 flex items-center justify-center">
+                        <div className="md:col-span-7 h-full max-h-[380px] relative rounded-lg overflow-hidden border border-zinc-700 bg-black/60 p-2 flex items-center justify-center">
                           <Image
                             src={modulo.imagem}
                             alt={modulo.titulo}
                             fill
                             sizes="(max-width: 1024px) 100vw, 50vw"
-                            className="object-contain"
+                            className="object-contain p-2"
                           />
                         </div>
                       </div>
                     ) : (
-                      <div className="flex flex-col justify-between flex-1 py-2 overflow-hidden">
-                        <div>
-                          <h3 className="text-lg font-bold text-zinc-300 mb-1 line-clamp-2">
+                      <div className="flex flex-col justify-between flex-1 py-2 overflow-hidden h-[calc(100%-2.5rem)]">
+                        <div className="shrink-0 h-14">
+                          <h3 className="text-lg font-bold text-zinc-300 mb-1 line-clamp-1">
                             {modulo.titulo}
                           </h3>
-                          <p className="text-xs text-zinc-400 mb-2 truncate">{modulo.subtitulo}</p>
+                          <p className="text-xs text-zinc-400 truncate">{modulo.subtitulo}</p>
                         </div>
 
-                        <div className="w-full flex-1 relative rounded-md overflow-hidden border border-zinc-700/60 my-2 bg-black/40 p-1 min-h-[140px]">
+                        <div className="w-full flex-1 relative rounded-md overflow-hidden border border-zinc-700/60 my-2 bg-black/40 p-1 min-h-[160px]">
                           <Image
                             src={modulo.imagem}
                             alt={modulo.titulo}
                             fill
                             sizes="(max-width: 1024px) 100vw, 25vw"
-                            className="object-contain"
+                            className="object-contain p-1"
                           />
                         </div>
 
-                        <div className="flex items-center gap-2 text-xs font-bold text-[#c59b27] uppercase tracking-wider shrink-0 mt-2">
+                        <div className="flex items-center gap-2 text-xs font-bold text-[#c59b27] uppercase tracking-wider shrink-0 mt-2 h-6">
                           <span>Ver Detalhes</span>
                           <span>→</span>
                         </div>
@@ -284,7 +306,7 @@ const [isPausado, setIsPausado] = useState(false);
 
         {/* INTEGRAÇÃO INTELIGENTE DE DADOS */}
         <section id="integracao" className="py-20 px-6">
-          <div className="max-w-5xl mx-auto bg-[#1e2022]/90 backdrop-blur-md border border-zinc-700/80 rounded-2xl p-8 md:p-12 shadow-2xl relative overflow-hidden text-white">
+          <div className="max-w-5xl mx-auto bg-[#1e2022]/70 backdrop-blur-md border border-zinc-700/70 rounded-2xl p-8 md:p-12 shadow-2xl relative overflow-hidden text-white">
             <div className="text-center max-w-3xl mx-auto mb-12">
               <h2 className="text-3xl md:text-4xl font-extrabold text-white tracking-tight">
                 Integração Inteligente de Dados
@@ -295,47 +317,72 @@ const [isPausado, setIsPausado] = useState(false);
             </div>
 
             <div className="grid md:grid-cols-3 gap-6">
-              <div className="bg-[#282a2d] border border-zinc-700 rounded-xl p-6 text-center hover:border-[#c59b27] transition shadow-md">
+              <div className="bg-[#282a2d]/80 border border-zinc-700/80 rounded-xl p-6 text-center hover:border-[#c59b27] transition-all shadow-md backdrop-blur-sm">
                 <div className="w-12 h-12 bg-[#c59b27]/20 text-[#e5b839] border border-[#c59b27]/40 rounded-xl flex items-center justify-center font-bold text-xl mx-auto mb-4">
                   📍
                 </div>
                 <h3 className="font-bold text-white mb-2 text-sm md:text-base">Central Unificada</h3>
-                <p className="text-xs text-zinc-400 leading-relaxed">
+                <p className="text-xs text-zinc-300 leading-relaxed">
                   Tudo o que acontece na Central vai direto para o seu sistema de gestão.
                 </p>
               </div>
 
-              <div className="bg-[#282a2d] border border-zinc-700 rounded-xl p-6 text-center hover:border-[#c59b27] transition shadow-md">
+              <div className="bg-[#282a2d]/80 border border-zinc-700/80 rounded-xl p-6 text-center hover:border-[#c59b27] transition-all shadow-md backdrop-blur-sm">
                 <div className="w-12 h-12 bg-[#c59b27]/20 text-[#e5b839] border border-[#c59b27]/40 rounded-xl flex items-center justify-center font-bold text-xl mx-auto mb-4">
                   📊
                 </div>
                 <h3 className="font-bold text-white mb-2 text-sm md:text-base">Relatórios Automáticos</h3>
-                <p className="text-xs text-zinc-400 leading-relaxed">
+                <p className="text-xs text-zinc-300 leading-relaxed">
                   Relatórios automáticos e precisos com documentação fotográfica.
                 </p>
               </div>
 
-              <div className="bg-[#282a2d] border border-zinc-700 rounded-xl p-6 text-center hover:border-[#c59b27] transition shadow-md">
+              <div className="bg-[#282a2d]/80 border border-zinc-700/80 rounded-xl p-6 text-center hover:border-[#c59b27] transition-all shadow-md backdrop-blur-sm">
                 <div className="w-12 h-12 bg-[#c59b27]/20 text-[#e5b839] border border-[#c59b27]/40 rounded-xl flex items-center justify-center font-bold text-xl mx-auto mb-4">
                   ⚡
                 </div>
                 <h3 className="font-bold text-white mb-2 text-sm md:text-base">Poder de Análise</h3>
-                <p className="text-xs text-zinc-400 leading-relaxed">
+                <p className="text-xs text-zinc-300 leading-relaxed">
                   Poder de análise real sobre o seu atendimento e desempenho da equipe.
                 </p>
               </div>
             </div>
 
-            <div className="mt-10 pt-6 border-t border-zinc-700/80 text-center">
-              <p className="text-xs font-bold text-zinc-400 tracking-wider uppercase">
+            <div className="mt-10 pt-6 border-t border-zinc-700/60 text-center">
+              <p className="text-xs font-bold text-zinc-300 tracking-wider uppercase">
                 Tecnologia e informação a serviço da sua operação.
               </p>
             </div>
           </div>
         </section>
 
+        {/* DEMONSTRAÇÃO EM VÍDEO (YOUTUBE) */}
+        <section id="demonstracao-video" className="py-20 px-6 bg-[#18191a]/70 backdrop-blur-md border-t border-zinc-700/50 text-white">
+          <div className="max-w-4xl mx-auto text-center">
+            <span className="text-[#c59b27] font-bold text-xs uppercase tracking-widest block mb-2">
+              Veja na Prática
+            </span>
+            <h2 className="text-3xl md:text-4xl font-extrabold text-white mb-4">
+              Demonstração do Sistema
+            </h2>
+            <p className="text-zinc-300 text-sm md:text-base max-w-2xl mx-auto mb-8">
+              Confira como o C-SEM Gestão simplifica o acompanhamento de ordens de serviço e a rotina de campo.
+            </p>
+
+            <div className="relative w-full aspect-video rounded-2xl overflow-hidden border border-zinc-700/80 shadow-2xl bg-black/60">
+              <iframe
+                src="https://www.youtube-nocookie.com/embed/GCJw9i9rZ0U"
+                title="Demonstração do C-SEM Gestão"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowFullScreen
+                className="absolute top-0 left-0 w-full h-full border-0"
+              />
+            </div>
+          </div>
+        </section>
+
         {/* FAQ */}
-        <section id="faq" className="py-20 px-6 bg-[#18191a]/90 backdrop-blur-md border-t border-zinc-800 text-white">
+        <section id="faq" className="py-20 px-6 bg-[#141516]/85 backdrop-blur-md border-t border-zinc-700/50 text-white">
           <div className="max-w-4xl mx-auto">
             <div className="text-center mb-12">
               <span className="text-[#c59b27] font-bold text-xs uppercase tracking-widest block mb-2">
@@ -348,11 +395,12 @@ const [isPausado, setIsPausado] = useState(false);
               {faqs.map((faq, index) => (
                 <div
                   key={index}
-                  className="bg-[#222426] border border-zinc-700/80 rounded-xl overflow-hidden transition-all shadow-sm"
+                  className="bg-[#222426]/80 border border-zinc-700/70 rounded-xl overflow-hidden transition-all shadow-sm backdrop-blur-sm"
                 >
                   <button
+                    type="button"
                     onClick={() => toggleFaq(index)}
-                    className="w-full text-left p-6 font-bold text-white flex justify-between items-center gap-4 hover:bg-[#2a2c2e] transition"
+                    className="w-full text-left p-6 font-bold text-white flex justify-between items-center gap-4 hover:bg-[#2a2c2e]/90 transition-colors"
                   >
                     <span>{faq.pergunta}</span>
                     <span className="text-xl text-[#c59b27] font-bold">
@@ -371,8 +419,8 @@ const [isPausado, setIsPausado] = useState(false);
           </div>
         </section>
 
-        {/* SEÇÃO DEDICADA DE CONTATO */}
-        <section id="contato" className="py-16 px-6 bg-[#1a1b1d]/90 border-t border-zinc-800 text-white">
+        {/* CONTATO */}
+        <section id="contato" className="py-16 px-6 bg-[#121314]/90 backdrop-blur-md border-t border-zinc-800 text-white">
           <div className="max-w-4xl mx-auto text-center space-y-6">
             <h2 className="text-3xl font-extrabold text-white">Pronto para transformar sua gestão?</h2>
             <p className="text-zinc-300 text-sm md:text-base max-w-xl mx-auto">
@@ -392,14 +440,19 @@ const [isPausado, setIsPausado] = useState(false);
         </section>
 
         {/* FOOTER */}
-        <footer className="border-t border-zinc-800 py-8 bg-[#121314] text-zinc-400 text-sm px-6">
+        <footer className="mt-auto border-t border-zinc-800 py-8 bg-[#0d0e0f]/95 text-zinc-400 text-sm px-6">
           <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-            <p>© {new Date().getFullYear()} C-SEM Gestão. Todos os direitos reservados.</p>
+            <p>© {currentYear} C-SEM Gestão. Todos os direitos reservados.</p>
             <div className="flex gap-6 font-medium text-xs uppercase tracking-wider">
-              <a href="mailto:contato@ecsem.com.br" className="hover:text-[#c59b27] transition">
+              <a href="mailto:contato@ecsem.com.br" className="hover:text-[#c59b27] transition-colors">
                 contato@ecsem.com.br
               </a>
-              <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" className="hover:text-[#c59b27] transition">
+              <a
+                href={whatsappUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-[#c59b27] transition-colors"
+              >
                 Suporte WhatsApp
               </a>
             </div>
