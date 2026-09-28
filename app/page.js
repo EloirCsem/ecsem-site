@@ -368,10 +368,9 @@ export default function Home() {
             <p className="text-zinc-300 text-sm md:text-base max-w-2xl mx-auto mb-8">
               Confira como o C-SEM Gestão simplifica o acompanhamento de ordens de serviço e a rotina de campo.
             </p>
-
-            <div className="relative w-full aspect-video rounded-2xl overflow-hidden border border-zinc-700/80 shadow-2xl bg-black/60">
+<div className="relative w-full aspect-video rounded-2xl overflow-hidden border border-zinc-700/80 shadow-2xl bg-black/60">
               <iframe
-                src="https://www.youtube-nocookie.com/embed/GCJw9i9rZ0U"
+                src="https://www.youtube-nocookie.com/embed/v9KOOSbe6ZY?rel=0&modestbranding=1"
                 title="Demonstração do C-SEM Gestão"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                 allowFullScreen

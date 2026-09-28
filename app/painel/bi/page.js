@@ -511,94 +511,65 @@ const tecnicosComOS = new Set(
 
       const COLORS = ["#22c55e", "#eab308", "#ef4444"];
 
-     return (
-    <div
-      className="min-h-screen text-zinc-100 antialiased font-sans bg-fixed bg-cover bg-center relative p-6 md:p-10"
-      style={{ backgroundImage: "url('/fundo-site.jpg')" }}
-    >
-      {/* 🔮 MÁSCARA DE GRADIENTE + DESFOQUE DO FUNDO */}
-      <div className="fixed inset-0 bg-gradient-to-b from-black/60 via-[#1e2022]/85 to-[#121314]/95 backdrop-blur-md pointer-events-none z-0" />
-
-      {/* 🚀 CONTEÚDO PRINCIPAL DO DASHBOARD */}
-      <div className="relative z-10 max-w-7xl mx-auto space-y-6">
-
-        {/* 🟡 HEADER */}
-        <header className="flex justify-between items-center bg-[#1e2022]/60 backdrop-blur-xl border border-zinc-700/60 p-6 rounded-2xl shadow-xl">
-          <div>
-            <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-white">
+      return (
+      <div className="min-h-screen bg-slate-800 text-gray-900 p-10">
+          
+          {/* 🟡 HEADER */}
+          <div className="flex justify-between items-center mb-6">
+            <h1 className="text-4xl font-bold text-yellow-500">
               {nomeGestor}
             </h1>
-            <p className="text-xs text-[#c59b27] font-semibold tracking-wider uppercase mt-1">
-              Painel de Gestão & Monitoramento
-            </p>
-          </div>
 
-          <div className="text-right text-white">
-            {mounted && (
-              <>
-                <p className="text-2xl font-bold font-mono text-zinc-100 tracking-wide">
-                  {hora.toLocaleTimeString()}
-                </p>
-                <p className="text-xs text-zinc-400 font-medium">
-                  {hora.toLocaleDateString()}
-                </p>
-              </>
-            )}
-          </div>
-        </header>
+        <div className="text-right text-white">
+  {mounted && (
+    <>
+      <p className="text-2xl font-bold">
+        {hora.toLocaleTimeString()}
+      </p>
+      <p className="text-sm">
+        {hora.toLocaleDateString()}
+      </p>
+    </>
+  )}
+</div>
+      </div>
 
-        {/* 🔍 BARRA DE FILTROS MODERNA */}
-        <section className="bg-[#1e2022]/80 backdrop-blur-xl border border-zinc-700/80 rounded-2xl p-4 shadow-xl flex gap-4 flex-wrap items-center">
-          
-          {/* Data Inicial */}
-          <div className="flex flex-col gap-1">
-            <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
-              Data Inicial
-            </label>
-            <input
-              type="date"
-              value={dataInicial}
-              onChange={(e) => setDataInicial(e.target.value)}
-              className="bg-[#141516]/90 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#c59b27] transition-all color-scheme-dark"
-            />
-          </div>
+<div className="bg-white rounded-xl p-4 mb-6 shadow flex gap-4 flex-wrap">
 
-          {/* Data Final */}
-          <div className="flex flex-col gap-1">
-            <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
-              Data Final
-            </label>
-            <input
-              type="date"
-              value={dataFinal}
-              onChange={(e) => setDataFinal(e.target.value)}
-              className="bg-[#141516]/90 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#c59b27] transition-all color-scheme-dark"
-            />
-          </div>
+  <input
+    type="date"
+    value={dataInicial}
+    onChange={(e) =>
+      setDataInicial(e.target.value)
+    }
+  />
 
-          {/* Seleção de Técnico */}
-          <div className="flex flex-col gap-1 flex-1 min-w-[200px]">
-            <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
-              Técnico
-            </label>
-            <select
-              value={tecnicoFiltro}
-              onChange={(e) => setTecnicoFiltro(e.target.value)}
-              className="bg-[#141516]/90 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#c59b27] transition-all"
-            >
-              <option value="" className="bg-[#141516] text-white">
-                Todos os técnicos
-              </option>
+  <input
+    type="date"
+    value={dataFinal}
+    onChange={(e) =>
+      setDataFinal(e.target.value)
+    }
+  />
 
-              {tecnicos.map((t) => (
-                <option key={t} value={t} className="bg-[#141516] text-white">
-                  {t}
-                </option>
-              ))}
-            </select>
-          </div>
+  <select
+    value={tecnicoFiltro}
+    onChange={(e) =>
+      setTecnicoFiltro(e.target.value)
+    }
+    className="border rounded px-3"
+  >
+    <option value="">
+      Todos os técnicos
+    </option>
 
-        </section>
+    {tecnicos.map(t => (
+      <option key={t} value={t}>
+        {t}
+      </option>
+    ))}
+  </select>
+
   <select
     value={clienteFiltro}
     onChange={(e) =>
